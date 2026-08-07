@@ -12,11 +12,14 @@ I ricevitori normali ascoltano su una singola frequenza con parametri preimposta
   - Trasmissioni a lunghissimo raggio (BW strette fino a 62.5kHz)
   - Comunicazioni di ritorno (Downlink) dai Gateway verso i sensori (Inversione IQ)
 - **Modalità "Fox Hunt" (Caccia):** Una volta scoperto un dispositivo in trasmissione, puoi selezionarlo. LoRaCatcher bloccherà la radio su quell'esatta configurazione e trasformerà il display OLED in un radar di prossimità in tempo reale: la barra grafica RSSI e il valore in dBm ti permetteranno di rintracciare fisicamente la sorgente ("fuochino/fuocherello").
-- **Interfaccia Web Remota (Access Point):** LoRaCatcher crea una sua rete WiFi (`LoRaCatcher`). Collegandoti con lo smartphone avrai accesso a una dashboard completa, responsiva e dal design accattivante.
-- **Status Batteria in Tempo Reale:** L'interfaccia Web mostra costantemente la percentuale di carica della batteria LiPo collegata. Il software gestisce automaticamente l'hardware specifico (incluso il risparmio energetico del partitore sulla Heltec V2).
-- **Feedback Visivo Immediato:** Il LED integrato sulla scheda lampeggerà istantaneamente ad ogni pacchetto intercettato, permettendoti di capire se c'è attività nell'etere senza dover guardare lo schermo.
-- **Parametri Personalizzati:** Aggiungi profili RF manuali, salta istantaneamente a frequenze specifiche, oppure imposta la precisione di scansione (fino a step chirurgici di 0.1 MHz).
-- **Cattura Forense PCAP:** Inserendo una scheda MicroSD, ogni singolo pacchetto intercettato (incluso il payload crudo, RSSI, SNR, e Timestamp) viene salvato in un file standard `.pcap`, pronto per essere aperto e analizzato offline tramite Wireshark.
+- **Interfaccia Web Premium a Schede (Tabs):** LoRaCatcher crea una sua rete WiFi (`LoRaCatcher`). Collegandoti con lo smartphone (o PC) avrai accesso a una dashboard all'avanguardia con design **Glassmorphism**, organizzata in schede navigabili senza noiosi ricaricamenti (grazie all'aggiornamento automatico via HTMX/Fetch):
+  - 📡 **Dashboard:** Controllo scansione, RSSI animato e gestione catture in tempo reale.
+  - 🎯 **Parametri:** Inserimento di profili personalizzati e caccia manuale (con Legenda integrata).
+  - ⚙️ **Sistema:** Gestione SD, impostazioni Wi-Fi e Aggiornamenti OTA.
+- **Aggiornamenti Firmware OTA:** Puoi caricare comodamente nuove versioni del firmware direttamente dall'interfaccia web senza collegare cavi USB (richiede partizione "Minimal SPIFFS" su Arduino IDE).
+- **Cattura Forense PCAP Perfetta:** Inserendo una scheda MicroSD, ogni singolo pacchetto intercettato (incluso il payload crudo, RSSI, SNR, e Timestamp) viene salvato in un file standard `.pcap`. Grazie al timestamp sincronizzato in automatico dal browser, i nomi dei file conterranno data e ora reali della bonifica, ed i pacchetti sfrutteranno l'header standard "LoRaTap" per essere analizzati alla perfezione su Wireshark.
+- **Status Batteria in Tempo Reale:** L'interfaccia Web mostra costantemente la percentuale di carica della batteria LiPo collegata. Il software gestisce automaticamente l'hardware specifico.
+- **Feedback Visivo Immediato:** Il LED integrato sulla scheda lampeggerà istantaneamente ad ogni pacchetto intercettato.
 
 ## 🛠️ Hardware Richiesto
 
@@ -47,11 +50,12 @@ Se usi invece la **Heltec ESP32 LoRa V2**, ti basterà de-commentare la prima ri
 ## 🚀 Installazione (Arduino IDE)
 
 1. Aggiungi il supporto ESP32 al Board Manager di Arduino IDE. Seleziona la board `TTGO LoRa32-OLED V1` (o equivalente).
-2. Assicurati di aver installato le seguenti librerie tramite il Library Manager:
+2. Scegli uno **Schema Partizioni (Partition Scheme)** che supporti l'OTA (ad es. `Minimal SPIFFS (1.9MB APP with OTA/190KB SPIFFS)`).
+3. Assicurati di aver installato le seguenti librerie tramite il Library Manager:
    - `LoRa` (di Sandeep Mistry)
    - `Adafruit SSD1306` e `Adafruit GFX Library`
-3. Copia il file `lora_catcher.cpp` (rinominalo in `.ino` se usi l'IDE standard e non PlatformIO/Arduino-CLI).
-4. Compila e carica sulla scheda.
+4. Copia il file `lora_catcher.cpp` (rinominalo in `.ino` se usi l'IDE standard e non PlatformIO/Arduino-CLI).
+5. Compila e carica sulla scheda tramite cavo USB per la prima installazione. Successivamente, potrai aggiornare via interfaccia Web!
 
 ## 📱 Utilizzo base
 
@@ -59,7 +63,7 @@ Se usi invece la **Heltec ESP32 LoRa V2**, ti basterà de-commentare la prima ri
 2. **Selezione Banda:** Usa il pulsante (click singolo) per alternare la banda (LOW 433-510 MHz o HIGH 863-923 MHz). Tieni premuto a lungo (Long Press) per avviare la scansione.
 3. **Scansione (Auto Scan):** Il dispositivo passerà in rassegna migliaia di combinazioni ogni secondo. Quando la scritta del contatore dispositivi trovati aumenta, significa che è stato catturato un pacchetto!
 4. **Visualizzazione e Caccia:** Tieni premuto il tasto per fermare lo scan e passare alla "Lista". Scorri la lista con click singoli. Una volta sul dispositivo che ti interessa, fai *Doppio Click* per attivare la "Fox Hunt" (radar di prossimità).
-6. **Fox Hunt via Web:** È possibile avviare il pedinamento radio (Radar RSSI in tempo reale) direttamente dall'interfaccia Web cliccando sul pulsante "🎯 Inizia Caccia" vicino al bersaglio rilevato.
+5. **Fox Hunt via Web:** È possibile avviare il pedinamento radio (Radar RSSI in tempo reale) direttamente dall'interfaccia Web cliccando sul pulsante "🎯 Inizia Caccia" vicino al bersaglio rilevato. La WebUI sfrutta l'aggiornamento automatico della barra di segnale sfumata da rosso a ciano, per indicarti visivamente l'avvicinamento al target.
 
 ## 📡 LoRa Generator (Strumento di Test)
 
