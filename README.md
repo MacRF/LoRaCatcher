@@ -20,16 +20,27 @@ I ricevitori normali ascoltano su una singola frequenza con parametri preimposta
 
 Il codice è scritto in C++ per l'ecosistema Arduino ed è ottimizzato per la popolare scheda di sviluppo di LilyGO:
 
-- **Scheda Principale:** TTGO / LilyGO LoRa32 V2 (o cloni ESP32 equipaggiati con SX1276)
+- **Scheda Principale:** TTGO LoRa32 V2 standard, oppure **LilyGO LoRa32 V2.1.6 (T3_V1.6)** (Quest'ultima ha lo slot MicroSD già incorporato!)
 - **Chip Radio:** Semtech SX1276 (supporto 433 MHz, 868 MHz, 915 MHz)
-- **Display:** OLED SSD1306 128x64 (Incluso nella scheda)
-- **Memoria:** Modulo MicroSD (spesso integrato sul retro della V2, oppure collegato via SPI)
+- **Display:** OLED SSD1306 128x64 (Incluso)
+- **Memoria:** Modulo MicroSD (Spesso esterno nella V2 classica, integrato nella T3_V1.6)
 
-**Connessioni PIN (TTGO LoRa32 V2):**
+**Selezione della scheda (Novità!):**
+Il codice sorgente include già le preconfigurazioni per i due modelli principali. Alla primissima riga del file `lora_catcher.cpp` troverai questo blocco:
+```cpp
+// Scegli la tua scheda de-commentando SOLO UNA delle righe seguenti:
+//#define BOARD_LILYGO_V2       // TTGO LoRa32 V2 (Standard, pin classici)
+#define BOARD_LILYGO_T3_V1_6  // LilyGO LoRa32 V2.1.6 (T3_V1.6) con MicroSD
+```
+Di default è attiva la **T3_V1.6**. Questa configura automaticamente l'OLED (su I2C 21/22), il chip LoRa, e crea un Bus HSPI separato per accedere al comodissimo lettore MicroSD integrato sul retro della scheda.
+
+Se usi invece la vecchia **TTGO V2**, ti basterà de-commentare la prima riga e commentare la seconda, e cablare una SD card esterna sui PIN classici:
 - **LoRa SPI:** SCK `5`, MISO `19`, MOSI `27`, CS `18`, RST `14`, DIO0 `26`
 - **Display I2C:** SDA `4`, SCL `15`, RST `16`
 - **MicroSD SPI:** CS `21`
-- **Pulsante Hardware (PRG):** PIN `0`
+- **Pulsante Hardware (PRG):** PIN `0` (puoi usare il bottone "BOOT" già presente sulla V2)
+
+**Nota sul Pulsante Fisico (T3_V1.6):** Poiché la LilyGO V2.1.6 (T3) non espone un pulsante utente generico oltre a quello di Reset, il software si aspetta che tu colleghi un tuo pulsante fisico (switch/arcade) tra il **PIN 4** e il **GND**. Non c'è bisogno di resistenze aggiuntive, il software usa già le resistenze di pull-up interne del chip (`INPUT_PULLUP`). Il PIN 4 è libero da interferenze e comodissimo da cablare sulla fila destra della scheda!
 
 ## 🚀 Installazione (Arduino IDE)
 
