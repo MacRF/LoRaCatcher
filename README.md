@@ -59,7 +59,15 @@ Se usi invece la **Heltec ESP32 LoRa V2**, ti basterà de-commentare la prima ri
 2. **Selezione Banda:** Usa il pulsante (click singolo) per alternare la banda (LOW 433-510 MHz o HIGH 863-923 MHz). Tieni premuto a lungo (Long Press) per avviare la scansione.
 3. **Scansione (Auto Scan):** Il dispositivo passerà in rassegna migliaia di combinazioni ogni secondo. Quando la scritta del contatore dispositivi trovati aumenta, significa che è stato catturato un pacchetto!
 4. **Visualizzazione e Caccia:** Tieni premuto il tasto per fermare lo scan e passare alla "Lista". Scorri la lista con click singoli. Una volta sul dispositivo che ti interessa, fai *Doppio Click* per attivare la "Fox Hunt" (radar di prossimità).
-5. **Connessione Web:** Collegati al WiFi `LoRaCatcher` (Password default: `catcheratwork`). Apri il browser all'indirizzo IP `192.168.4.1` (di norma). Dalla pagina web potrai gestire remotamente tutto l'apparato, modificare la sensibilità dello step (fino a 0.1 MHz), aggiungere canali manuali e scaricare il dump in formato PCAP.
+6. **Fox Hunt via Web:** È possibile avviare il pedinamento radio (Radar RSSI in tempo reale) direttamente dall'interfaccia Web cliccando sul pulsante "🎯 Inizia Caccia" vicino al bersaglio rilevato.
+
+## 📡 LoRa Generator (Strumento di Test)
+
+Insieme al LoRaCatcher, in questo progetto è incluso anche **LoRaGenerator**. Si tratta di uno sketch totalmente separato (file `lora_generator.cpp`) progettato per essere caricato su una seconda scheda (es. Heltec ESP32 LoRa V2). 
+Il suo scopo è generare traffico radio controllato per collaudare il Catcher:
+- Crea una propria rete WiFi (`LoRaGenerator`, password `generatortest`).
+- Dalla sua interfaccia web puoi "plasmare" il pacchetto LoRa (scegliendo frequenza esatta, SF, BW, CR e Sync Word) e iniziare a trasmettere a ripetizione (fino a 10 pacchetti al secondo).
+- Usalo come bersaglio artificiale per fare pratica con la modalità "Fox Hunt" e verificare la ricezione dei payload!
 
 ## ⚖️ Licenza e Termini d'Uso
 **Copyright © MacRF. Tutti i diritti riservati.**
