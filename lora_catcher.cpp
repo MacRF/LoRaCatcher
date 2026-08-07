@@ -23,6 +23,8 @@
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <Preferences.h>
+#include <Update.h>
+#include <sys/time.h>
 
 // ==================== CONFIGURAZIONE SCHEDA ====================
 // Scegli la tua scheda de-commentando (rimuovendo le doppie sbarre) SOLO UNA delle righe seguenti:
@@ -179,7 +181,8 @@ const int LONG_PRESS_MS = 800;
 const int DOUBLE_CLICK_INTERVAL = 250;
 
 // ==================== FILE PCAP ====================
-const char* pcapFileName = "/lora_bonifica.pcap";
+String pcapFileName = "/lora_bonifica.pcap";
+bool timeSynced = false;
 bool sdCardPresent = false;
 
 // ==================== PROTOTIPI ====================
@@ -191,8 +194,8 @@ void generateProfiles();
 void applyChannel(int index);
 int  readInstantRSSI();
 void writePcapGlobalHeader();
-void writePcapPacket(int rssi, int snr, long freq, int sf, long bw, int cr, uint8_t* payload, size_t len);
-void handleButton();
+void openNewPcapFile();
+void writePcapPacket(int rssi, int snr, long freq, int sf, long bw, int cr, int syncWord, uint8_t* payload, size_t len);void handleButton();
 void processPress(PressType press);
 
 void drawBandSelect();
@@ -213,6 +216,7 @@ void handleRemoveProfile();
 void handleManualHunt();
 void handleSetBand();
 void handleStartScan();
+void handleRestartScan();
 void handleStopScan();
 void handleDownload();
 void handleDelete();
@@ -287,6 +291,7 @@ void setup() {
   } else {
     Serial.println("✓ SD card pronta");
     sdCardPresent = true;
+    openNewPcapFile();
     writePcapGlobalHeader();
   }
 
@@ -371,7 +376,7 @@ void loop() {
                   currentChannelIndex, packetRssi, snr, len);
 
     if (sdCardPresent) {
-      writePcapPacket(packetRssi, snr, currentCh.freq, currentCh.sf, currentCh.bw, currentCh.cr, payload, len);
+      writePcapPacket(packetRssi, snr, currentCh.freq, currentCh.sf, currentCh.bw, currentCh.cr, currentCh.syncWord, payload, len);
     }
     
     digitalWrite(LED_PIN, HIGH);
@@ -895,10 +900,35 @@ void drawHuntState(int rssi) {
 }
 
 // ==================== PCAP ====================
+void openNewPcapFile() {
+  if (!sdCardPresent) return;
+  
+  if (timeSynced) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    struct tm* tm_info = localtime(&tv.tv_sec);
+    char buf[64];
+    strftime(buf, sizeof(buf), "/lora_bonifica_%Y%m%d_%H%M%S.pcap", tm_info);
+    pcapFileName = String(buf);
+  } else {
+    int index = 1;
+    while (true) {
+      String name = "/lora_bonifica_" + String(index) + ".pcap";
+      if (!SD.exists(name)) {
+        pcapFileName = name;
+        break;
+      }
+      index++;
+    }
+  }
+  
+  writePcapGlobalHeader();
+}
+
 void writePcapGlobalHeader() {
   if (!sdCardPresent) return;
   
-  File f = SD.open(pcapFileName, FILE_WRITE);
+  File f = SD.open(pcapFileName.c_str(), FILE_WRITE);
   if (!f) return;
   
   uint32_t magic = 0xa1b2c3d4;
@@ -908,7 +938,7 @@ void writePcapGlobalHeader() {
   f.write((uint8_t*)&v_maj, 2);
   f.write((uint8_t*)&v_min, 2);
   
-  uint32_t tz = 0, sigfigs = 0, snaplen = 65535, network = 273;
+  uint32_t tz = 0, sigfigs = 0, snaplen = 65535, network = 270; // 270 is LINKTYPE_LORATAP
   f.write((uint8_t*)&tz, 4);
   f.write((uint8_t*)&sigfigs, 4);
   f.write((uint8_t*)&snaplen, 4);
@@ -917,39 +947,43 @@ void writePcapGlobalHeader() {
   f.close();
 }
 
-void writePcapPacket(int rssi, int snr, long freq, int sf, long bw, int cr, 
+void writePcapPacket(int rssi, int snr, long freq, int sf, long bw, int cr, int syncWord, 
                      uint8_t* payload, size_t len) {
   if (!sdCardPresent) return;
   
-  File f = SD.open(pcapFileName, FILE_APPEND);
+  File f = SD.open(pcapFileName.c_str(), FILE_APPEND);
   if (!f) return;
 
-  uint32_t bitmask = (1<<0) | (1<<1) | (1<<2) | (1<<3) | (1<<4) | (1<<5);
-  uint8_t hdr[64];
-  int off = 0;
+  uint8_t hdr[15];
   
-  hdr[off++] = 0;  // version
-  hdr[off++] = 0;  // reserved
-  off += 2;        // spazio header_length
+  hdr[0] = 0;  // version (v0)
+  hdr[1] = 0;  // padding
   
-  memcpy(hdr + off, &bitmask, 4); off += 4;
+  uint16_t hlen = sizeof(hdr);
+  hdr[2] = (hlen >> 8) & 0xFF; // length high byte
+  hdr[3] = hlen & 0xFF;        // length low byte
   
   uint32_t fq = (uint32_t)freq;
-  memcpy(hdr + off, &fq, 4); off += 4;
+  hdr[4] = (fq >> 24) & 0xFF;
+  hdr[5] = (fq >> 16) & 0xFF;
+  hdr[6] = (fq >> 8) & 0xFF;
+  hdr[7] = fq & 0xFF;
   
-  hdr[off++] = (uint8_t)sf;
+  uint8_t bw_idx = 0;
+  if (bw == 125000) bw_idx = 0;
+  else if (bw == 250000) bw_idx = 1;
+  else if (bw == 500000) bw_idx = 2;
+  else if (bw == 62500) bw_idx = 3;
   
-  uint8_t bw_idx = (bw == 125000) ? 0 : (bw == 250000) ? 1 : 2;
-  hdr[off++] = bw_idx;
+  hdr[8] = bw_idx;
+  hdr[9] = (uint8_t)sf;
   
-  hdr[off++] = (uint8_t)cr;
-  hdr[off++] = (int8_t)rssi;
-  hdr[off++] = (int8_t)(snr * 4);
+  hdr[10] = (int8_t)rssi; // rssi_packet
+  hdr[11] = 0; // rssi_max (not used)
+  hdr[12] = 0; // rssi_current (not used)
+  hdr[13] = (int8_t)(snr * 4); // SNR in 0.25dB steps
+  hdr[14] = (uint8_t)syncWord;
   
-  uint16_t hlen = off;
-  hdr[2] = hlen & 0xFF;
-  hdr[3] = (hlen >> 8) & 0xFF;
-
   uint32_t now = millis();
   uint32_t ts_sec = now / 1000;
   uint32_t ts_us = (now % 1000) * 1000;
@@ -983,6 +1017,7 @@ void setupWiFi() {
   server.on("/manualhunt", handleManualHunt);
   server.on("/setband", handleSetBand);
   server.on("/startscan", handleStartScan);
+  server.on("/restartscan", handleRestartScan);
   server.on("/stopscan", handleStopScan);
   server.on("/download", handleDownload);
   server.on("/delete", handleDelete);
@@ -990,6 +1025,52 @@ void setupWiFi() {
   server.on("/webhunt", handleWebHunt);
   server.on("/profiles.txt", handleProfilesTxt);
   server.on("/setwifi", handleSetWiFi);
+  
+  server.on("/update", HTTP_GET, []() {
+    server.sendHeader("Connection", "close");
+    server.send(200, "text/html", "<html><body><form method='POST' action='/update' enctype='multipart/form-data'><input type='file' name='update'><input type='submit' value='Update'></form></body></html>");
+  });
+  
+  server.on("/update", HTTP_POST, []() {
+    server.sendHeader("Connection", "close");
+    server.send(200, "text/plain", (Update.hasError()) ? "UPDATE FAILED" : "UPDATE SUCCESS - REBOOTING");
+    delay(1000);
+    ESP.restart();
+  }, []() {
+    HTTPUpload& upload = server.upload();
+    if (upload.status == UPLOAD_FILE_START) {
+      if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+        Update.printError(Serial);
+      }
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+        Update.printError(Serial);
+      }
+    } else if (upload.status == UPLOAD_FILE_END) {
+      if (Update.end(true)) {
+        Serial.printf("Update Success: %u\n", upload.totalSize);
+      } else {
+        Update.printError(Serial);
+      }
+    }
+  });
+
+  server.on("/settime", HTTP_GET, []() {
+    if (server.hasArg("t")) {
+      struct timeval tv;
+      tv.tv_sec = server.arg("t").toInt();
+      tv.tv_usec = 0;
+      settimeofday(&tv, NULL);
+      if (!timeSynced) {
+        timeSynced = true;
+        if (sdCardPresent && pcapFileName.startsWith("/lora_bonifica_")) {
+           openNewPcapFile();
+        }
+      }
+    }
+    server.send(200, "text/plain", "OK");
+  });
+
   server.onNotFound(handleRoot);
   
   server.begin();
@@ -1102,6 +1183,19 @@ void handleStartScan() {
     state = SCAN;
     currentChannelIndex = savedScannerIndex; // Riprende da dove era rimasto
     applyChannel(currentChannelIndex);       // Sintonizza fisicamente la radio subito
+    channelEnteredTime = millis();
+  }
+  server.sendHeader("Location", "/");
+  server.send(302);
+}
+
+void handleRestartScan() {
+  if (state != BAND_SELECT) {
+    autoScan = true;
+    state = SCAN;
+    currentChannelIndex = 0;
+    savedScannerIndex = 0;
+    applyChannel(currentChannelIndex);
     channelEnteredTime = millis();
   }
   server.sendHeader("Location", "/");
@@ -1221,7 +1315,10 @@ String generateWebPage() {
   int bat = getBatteryPercentage();
   html += "<div style='position:absolute; top:15px; right:15px; font-size:14px; color:#00e676; font-weight:bold;'>&#128267; " + String(bat) + "%</div>";
   
-  html += "<h1>&#128269; LoRaCatcher <span style='font-size:12px; color:#888; font-weight:normal;'>by MacRF</span></h1>";
+  html += "<div style='display:flex; justify-content:center; align-items:center; position:relative; margin-bottom:15px; width:100%;'>";
+  html += "<a href='#settings_sect' onclick=\"document.getElementById('settings_sect').open=true;\" style='position:absolute; left:0; font-size:24px; text-decoration:none; color:#888;'>&#9881;</a>";
+  html += "<h1 style='margin:0;'>&#128269; LoRaCatcher <span style='font-size:12px; color:#888; font-weight:normal;'>by MacRF</span></h1>";
+  html += "</div>";
   html += "<div class='container'>";
   
   if (state == HUNT) {
@@ -1261,6 +1358,7 @@ String generateWebPage() {
   if (state != BAND_SELECT) {
     html += "<div class='btn-group'>";
     html += "<button onclick=\"location.href='/startscan'\">&#9654; Avvia</button>";
+    html += "<button onclick=\"location.href='/restartscan'\">&#8635; Ricomincia</button>";
     html += "<button class='btn-danger' onclick=\"location.href='/stopscan'\">&#9646;&#9646; Ferma</button>";
     html += "</div>";
   }
@@ -1404,9 +1502,9 @@ String generateWebPage() {
   }
 
   html += "<div class='card full'>";
-  html += "<details>";
-  html += "<summary>Impostazioni Sistema & WiFi</summary>";
-  html += "<p style='font-size:11px; margin-bottom:10px; margin-top:0;'>Cambia impostazioni base (richiede riavvio).</p>";
+  html += "<details id='settings_sect'>";
+  html += "<summary>Impostazioni Sistema & WiFi & OTA</summary>";
+  html += "<p style='font-size:11px; margin-bottom:10px; margin-top:0;'>Cambia impostazioni base o aggiorna firmware.</p>";
   html += "<form action='/setwifi' method='GET'>";
   html += "<div class='form-group'><label>SSID WiFi:</label><input type='text' name='s' value='" + wifiSSID + "' required></div>";
   html += "<div class='form-group'><label>Password (min 8 car):</label><input type='text' name='p' value='" + wifiPASS + "' required minlength='8'></div>";
@@ -1417,12 +1515,28 @@ String generateWebPage() {
   html += "</select></div>";
   html += "<button type='submit'>Salva e Riavvia</button>";
   html += "</form>";
+  html += "<hr>";
+  html += "<h4>Aggiornamento Firmware OTA</h4>";
+  html += "<form method='POST' action='/update' enctype='multipart/form-data'>";
+  html += "<input type='file' name='update' required style='margin-bottom:10px; width: 100%;'><br>";
+  html += "<button type='submit' style='background:#ff3b30;'>Carica e Aggiorna</button>";
+  html += "</form>";
   html += "</details>";
   html += "</div>";
 
   html += "</div>"; // End container
   
-  html += "<script>setTimeout(function(){location.reload();},5000);</script>";
+  html += "<script>";
+  html += "let autoRefresh = setTimeout(function(){location.reload();}, 5000);";
+  html += "document.querySelectorAll('input, select, button').forEach(e => {";
+  html += "  e.addEventListener('focus', () => clearTimeout(autoRefresh));";
+  html += "  e.addEventListener('mousedown', () => clearTimeout(autoRefresh));";
+  html += "});";
+  html += "if(!sessionStorage.getItem('timeSent')) {";
+  html += "  let ts = Math.floor(Date.now()/1000);";
+  html += "  fetch('/settime?t='+ts).then(() => sessionStorage.setItem('timeSent', '1'));";
+  html += "}";
+  html += "</script>";
   html += "</body></html>";
   return html;
 }
