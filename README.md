@@ -61,8 +61,12 @@ Se usi invece la **Heltec ESP32 LoRa V2**, ti basterà de-commentare la prima ri
 4. **Visualizzazione e Caccia:** Tieni premuto il tasto per fermare lo scan e passare alla "Lista". Scorri la lista con click singoli. Una volta sul dispositivo che ti interessa, fai *Doppio Click* per attivare la "Fox Hunt" (radar di prossimità).
 5. **Connessione Web:** Collegati al WiFi `LoRaCatcher` (Password default: `catcheratwork`). Apri il browser all'indirizzo IP `192.168.4.1` (di norma). Dalla pagina web potrai gestire remotamente tutto l'apparato, modificare la sensibilità dello step (fino a 0.1 MHz), aggiungere canali manuali e scaricare il dump in formato PCAP.
 
-## 🤝 Contribuzioni
-Tutte le pull request sono benvenute. Per cambiamenti architetturali o per l'aggiunta del supporto a chip radio di generazione successiva (es. SX1262), apri prima una Issue per discuterne l'implementazione!
+## ⚖️ Licenza e Termini d'Uso
+**Copyright © MacRF. Tutti i diritti riservati.**
+
+Il presente progetto (`LoRaCatcher`) è un'opera personale. Viene concesso **esclusivamente per uso personale e didattico**.
+- ❌ **NON è consentita** la modifica, la distribuzione, la copia o la pubblicazione del codice sorgente (in tutto o in parte).
+- ❌ **NON è consentito** l'uso commerciale o a scopo di lucro del software, né l'integrazione in prodotti destinati alla vendita.
 
 ---
 *Progetto nato per scopi didattici, ricerca sulla sicurezza informatica (Pentesting IoT) e analisi dell'inquinamento elettromagnetico. L'autore declina ogni responsabilità per usi non conformi alle leggi locali sulle telecomunicazioni.*
