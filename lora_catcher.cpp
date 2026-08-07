@@ -125,8 +125,8 @@ const int SF_LIST[] = {7, 8, 9, 10, 11, 12};
 const int NUM_SF = 6;
 const long BW_LIST[] = {62500, 125000, 250000, 500000};
 const int NUM_BW = 4;
-const int CR_LIST[] = {5, 6, 7, 8};  // 4/5, 4/6, 4/7, 4/8
-const int NUM_CR = 4;
+const int CR_LIST[] = {5};  // 4/5 (il chip rileva automaticamente gli altri CR nell'header esplicito)
+const int NUM_CR = 1;
 const int SYNC_LIST[] = {0x12, 0x34};
 const int NUM_SYNC = 2;
 const bool IQ_LIST[] = {false, true};
@@ -146,6 +146,7 @@ struct DiscoveredDevice {
 DiscoveredDevice discovered[MAX_DISCOVERED];
 int discoveredCount = 0;
 int currentRssi = -140;
+int savedScannerIndex = 0;
 
 // ==================== STATI APPLICAZIONE ====================
 enum AppState { BAND_SELECT, SCAN, SELECT, HUNT };
@@ -215,6 +216,7 @@ void handleStartScan();
 void handleStopScan();
 void handleDownload();
 void handleDelete();
+void handleClearList();
 void handleWebHunt();
 void handleProfilesTxt();
 void handleSetWiFi();
@@ -360,7 +362,8 @@ void loop() {
     
     LoRaChannel currentCh = (currentChannelIndex == -1) ? manualProfile : getProfile(currentChannelIndex);
     
-    if (currentChannelIndex != -1) {
+    // Registra o aggiorna solo se stiamo scansionando
+    if (state == SCAN && currentChannelIndex != -1) {
       registerDiscovered(currentCh);
     }
 
@@ -518,6 +521,11 @@ void applyChannel(int index) {
     setupLoRaChannel(manualProfile);
     currentChannelIndex = -1;
     packetCountChannel = 0;
+    
+    // Forza lo svuotamento del buffer per eliminare pacchetti "fantasma"
+    while(LoRa.parsePacket() > 0) {
+      while(LoRa.available()) LoRa.read();
+    }
     return;
   }
 
@@ -526,6 +534,11 @@ void applyChannel(int index) {
   setupLoRaChannel(getProfile(index));
   currentChannelIndex = index;
   packetCountChannel = 0;
+  
+  // Forza lo svuotamento del buffer per eliminare pacchetti "fantasma" ricevuti sul canale precedente
+  while(LoRa.parsePacket() > 0) {
+    while(LoRa.available()) LoRa.read();
+  }
 }
 
 // ==================== RSSI ISTANTANEO ====================
@@ -660,7 +673,8 @@ void processPress(PressType press) {
         // Torna a scansione
         state = SCAN;
         autoScan = true;
-        if (currentChannelIndex == -1) currentChannelIndex = 0;
+        currentChannelIndex = savedScannerIndex;
+        applyChannel(currentChannelIndex); // Sintonizza fisicamente la radio subito
         channelEnteredTime = millis();
       }
       else if (press == LONG_PRESS) {
@@ -668,7 +682,8 @@ void processPress(PressType press) {
         resetDiscovery();
         state = SCAN;
         autoScan = true;
-        if (currentChannelIndex == -1) currentChannelIndex = 0;
+        currentChannelIndex = savedScannerIndex;
+        applyChannel(currentChannelIndex); // Sintonizza fisicamente la radio subito
         channelEnteredTime = millis();
       }
       break;
@@ -683,9 +698,12 @@ void enterList() {
 }
 
 void enterHunt(int discoveredIndex) {
-  applyChannel(0); // Dummy for implementation sake, usually profile search
   state = HUNT;
   LoRaChannel ch = discovered[discoveredIndex].ch;
+  manualProfile = ch;
+  if (currentChannelIndex != -1) savedScannerIndex = currentChannelIndex;
+  currentChannelIndex = -1; // Usa il manualProfile durante la caccia
+  packetCountChannel = 0;   // Azzera il contatore di sessione
   setupLoRaChannel(ch);
   Serial.printf("Caccia: %.1f MHz SF%d BW%.0fk\n", ch.freq/1e6, ch.sf, ch.bw/1e3);
 }
@@ -698,7 +716,8 @@ void enterManualHunt(long freq, int sf, long bw, int cr, int syncWord, int iq) {
   manualProfile.syncWord = syncWord;
   manualProfile.invertIQ = (iq == 1);
   state = HUNT;
-  applyChannel(-1);
+  if (currentChannelIndex != -1) savedScannerIndex = currentChannelIndex;
+  currentChannelIndex = -1;
   packetCountChannel = 0;
   Serial.printf("CACCIA MANUALE: %.1f MHz SF%d\n", freq / 1000000.0, sf);
   drawHuntState(readInstantRSSI());
@@ -837,11 +856,13 @@ void drawSelectState() {
     display.printf("%.1fM S%d %dp%s%s", ch.freq / 1e6, ch.sf, discovered[i].packetCount, ch.syncWord==0x34?"W":"", ch.invertIQ?"I":"");
   }
   
+  display.setTextColor(SSD1306_WHITE); // Ripristina il colore per le altre schermate
   display.display();
 }
 
 void drawHuntState(int rssi) {
   display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
   
   // Barra RSSI grande
   int bar = map(rssi, -140, -30, 0, 80);
@@ -965,6 +986,7 @@ void setupWiFi() {
   server.on("/stopscan", handleStopScan);
   server.on("/download", handleDownload);
   server.on("/delete", handleDelete);
+  server.on("/clear", handleClearList);
   server.on("/webhunt", handleWebHunt);
   server.on("/profiles.txt", handleProfilesTxt);
   server.on("/setwifi", handleSetWiFi);
@@ -1078,7 +1100,8 @@ void handleStartScan() {
   if (state != BAND_SELECT) {
     autoScan = true;
     state = SCAN;
-    if (currentChannelIndex == -1) currentChannelIndex = 0;
+    currentChannelIndex = savedScannerIndex; // Riprende da dove era rimasto
+    applyChannel(currentChannelIndex);       // Sintonizza fisicamente la radio subito
     channelEnteredTime = millis();
   }
   server.sendHeader("Location", "/");
@@ -1114,6 +1137,12 @@ void handleDelete() {
       SD.remove(fName);
     }
   }
+  server.sendHeader("Location", "/");
+  server.send(302);
+}
+
+void handleClearList() {
+  discoveredCount = 0;
   server.sendHeader("Location", "/");
   server.send(302);
 }
@@ -1249,7 +1278,11 @@ String generateWebPage() {
   html += "</div>";
   
   html += "<div class='card full'>";
-  html += "<h2>Dispositivi Rilevati (" + String(discoveredCount) + ")</h2>";
+  html += "<div style='display:flex; justify-content:space-between; align-items:center;'>";
+  html += "<h2 style='border:none; margin:0;'>Dispositivi Rilevati (" + String(discoveredCount) + ")</h2>";
+  html += "<button onclick=\"location.href='/clear'\" style='width:auto; padding:5px 10px; font-size:11px; background:#444; color:#fff;'>&#128465; Svuota Lista</button>";
+  html += "</div>";
+  html += "<hr style='border-color:#333; margin-bottom:12px;'>";
   if (discoveredCount > 0) {
     html += "<div style='display:grid; gap:8px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));'>";
     for (int i = 0; i < discoveredCount; i++) {
