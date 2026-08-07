@@ -527,6 +527,7 @@ void applyChannel(int index) {
     currentChannelIndex = -1;
     packetCountChannel = 0;
     
+    delay(50); // Attendi l'assestamento hardware per scartare pacchetti fantasma
     // Forza lo svuotamento del buffer per eliminare pacchetti "fantasma"
     while(LoRa.parsePacket() > 0) {
       while(LoRa.available()) LoRa.read();
@@ -540,6 +541,7 @@ void applyChannel(int index) {
   currentChannelIndex = index;
   packetCountChannel = 0;
   
+  delay(50); // Attendi l'assestamento hardware per scartare pacchetti fantasma
   // Forza lo svuotamento del buffer per eliminare pacchetti "fantasma" ricevuti sul canale precedente
   while(LoRa.parsePacket() > 0) {
     while(LoRa.available()) LoRa.read();
@@ -1131,6 +1133,7 @@ void handleAddProfile() {
       customProfiles[numCustomProfiles].syncWord = sy;
       customProfiles[numCustomProfiles].invertIQ = (iq == 1);
       numCustomProfiles++;
+      generateProfiles(); // Aggiorna il numero totale per lo scanner
     }
   }
   server.sendHeader("Location", "/");
@@ -1145,6 +1148,7 @@ void handleRemoveProfile() {
         customProfiles[i] = customProfiles[i+1];
       }
       numCustomProfiles--;
+      generateProfiles(); // Aggiorna il numero totale per lo scanner
     }
   }
   server.sendHeader("Location", "/");
@@ -1284,127 +1288,169 @@ String generateWebPage() {
   html += "<title>LoRa Bonifica</title>";
   html += "<style>";
   html += "* { box-sizing: border-box; }";
-  html += "body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 15px; background: #121212; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; }";
-  html += "h1 { color: #00e676; font-size: 22px; margin: 5px 0 15px 0; text-align: center; text-shadow: 0 0 10px rgba(0,230,118,0.3); }";
-  html += "h2 { color: #00e676; font-size: 15px; margin: 0 0 12px 0; border-bottom: 1px solid #333; padding-bottom: 6px; }";
-  html += ".container { width: 100%; max-width: 800px; display: grid; gap: 15px; grid-template-columns: 1fr; }";
+  html += "body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 15px; background: #0b0c10; color: #c5c6c7; display: flex; flex-direction: column; align-items: center; }";
+  html += "h1 { color: #00bfff; font-size: 24px; margin: 5px 0 15px 0; text-align: center; text-shadow: 0 0 12px rgba(0,191,255,0.4); font-weight: 600; }";
+  html += "h2 { color: #00bfff; font-size: 16px; margin: 0 0 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; font-weight: 500; }";
+  html += ".container { width: 100%; max-width: 800px; display: grid; gap: 16px; grid-template-columns: 1fr; }";
   html += "@media(min-width: 600px) { .container { grid-template-columns: 1fr 1fr; } }";
-  html += ".card { background: linear-gradient(145deg, #1e1e1e, #1a1a1a); padding: 15px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.4); border: 1px solid #2a2a2a; }";
+  html += ".card { background: rgba(30,30,32,0.6); backdrop-filter: blur(10px); padding: 16px; border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.03); }";
   html += ".card.full { grid-column: 1 / -1; }";
-  html += "p { margin: 5px 0; font-size: 13px; color: #ccc; }";
-  html += "b { color: #fff; }";
-  html += "button { background: linear-gradient(145deg, #00e676, #00c853); color: #121212; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.3s ease; width: 100%; margin-top: 8px; font-size: 13px; box-shadow: 0 4px 10px rgba(0,230,118,0.2); }";
-  html += "button:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 6px 15px rgba(0,230,118,0.3); }";
-  html += ".btn-group { display: flex; gap: 8px; }";
+  html += "p { margin: 6px 0; font-size: 13px; color: #a0a0a5; }";
+  html += "b { color: #ffffff; font-weight: 600; }";
+  html += "button { background: linear-gradient(135deg, #007AFF, #00bfff); color: #fff; border: none; padding: 12px 16px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); width: 100%; margin-top: 8px; font-size: 14px; box-shadow: 0 4px 12px rgba(0,122,255,0.3); }";
+  html += "button:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,122,255,0.5); filter: brightness(1.1); }";
+  html += "button:active { transform: translateY(1px); }";
+  html += ".btn-group { display: flex; gap: 10px; }";
   html += ".btn-group button { flex: 1; margin-top: 0; }";
-  html += ".btn-danger { background: linear-gradient(145deg, #ff5252, #e53935); color: #fff; box-shadow: 0 4px 10px rgba(255,82,82,0.2); }";
-  html += ".btn-danger:hover { box-shadow: 0 6px 15px rgba(255,82,82,0.3); }";
-  html += ".form-group { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }";
-  html += ".form-group label { font-size: 13px; color: #aaa; flex: 1; }";
-  html += ".form-group input, .form-group select { width: 55%; padding: 8px; border-radius: 8px; border: 1px solid #444; background: #222; color: #fff; font-size: 13px; transition: 0.3s; }";
-  html += ".form-group input:focus, .form-group select:focus { border-color: #00e676; outline: none; box-shadow: 0 0 5px rgba(0,230,118,0.3); }";
-  html += ".prof-item { background: #222; padding: 10px 12px; margin-bottom: 8px; border-radius: 8px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid #00e676; }";
-  html += ".prof-item a { color: #ff5252; text-decoration: none; font-weight: bold; font-size: 16px; padding: 0 8px; transition: 0.2s; }";
-  html += ".prof-item a:hover { color: #ff1744; transform: scale(1.1); }";
-  html += "details { margin-bottom: 10px; }";
-  html += "summary { font-size: 15px; font-weight: bold; color: #00e676; cursor: pointer; outline: none; margin-bottom: 10px; transition: 0.2s; }";
-  html += "summary:hover { text-shadow: 0 0 8px rgba(0,230,118,0.4); }";
-  html += "@media(max-width: 500px) { .form-group { flex-direction: column; align-items: stretch; gap: 5px; margin-bottom:15px; } .form-group input, .form-group select { width: 100%; } }";
+  html += ".btn-danger { background: linear-gradient(135deg, #ff3b30, #ff453a); box-shadow: 0 4px 12px rgba(255,59,48,0.3); }";
+  html += ".btn-danger:hover { box-shadow: 0 6px 16px rgba(255,59,48,0.5); }";
+  html += ".btn-secondary { background: linear-gradient(135deg, #48484a, #3a3a3c); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }";
+  html += ".btn-secondary:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.4); }";
+  html += ".form-group { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }";
+  html += ".form-group label { font-size: 13px; color: #a1a1a6; flex: 1; font-weight: 500; }";
+  html += ".form-group input, .form-group select { width: 55%; padding: 10px; border-radius: 8px; border: 1px solid #333; background: rgba(0,0,0,0.3); color: #fff; font-size: 13px; transition: 0.3s; }";
+  html += ".form-group input:focus, .form-group select:focus { border-color: #007AFF; outline: none; box-shadow: 0 0 0 2px rgba(0,122,255,0.3); }";
+  html += ".prof-item { background: rgba(0,0,0,0.2); padding: 12px; margin-bottom: 10px; border-radius: 10px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #00bfff; border-top: 1px solid rgba(255,255,255,0.02); border-right: 1px solid rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.02); transition: 0.2s; }";
+  html += ".prof-item:hover { background: rgba(0,0,0,0.4); transform: translateX(2px); }";
+  html += ".prof-item a { color: #ff453a; text-decoration: none; font-weight: bold; font-size: 18px; padding: 0 10px; transition: 0.2s; line-height:1; }";
+  html += ".prof-item a:hover { color: #ff6961; transform: scale(1.2); }";
+  html += "details { margin-bottom: 10px; background: rgba(0,0,0,0.15); padding: 10px; border-radius: 10px; }";
+  html += "summary { font-size: 15px; font-weight: 600; color: #00bfff; cursor: pointer; outline: none; transition: 0.2s; user-select: none; margin-bottom:10px; }";
+  html += "summary:hover { text-shadow: 0 0 10px rgba(0,191,255,0.4); }";
+  html += ".status-badge { background: rgba(0,191,255,0.15); color: #00bfff; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: bold; border: 1px solid rgba(0,191,255,0.3); }";
+  html += ".glass-panel { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.03); }";
+  html += "@media(max-width: 500px) { .form-group { flex-direction: column; align-items: stretch; gap: 6px; margin-bottom:16px; } .form-group input, .form-group select { width: 100%; } }";
+  
+  // TABS CSS
+  html += ".tabs { display: flex; width: 100%; max-width: 800px; margin-bottom: 20px; background: rgba(0,0,0,0.4); border-radius: 12px; padding: 4px; border: 1px solid rgba(255,255,255,0.05); }";
+  html += ".tab-btn { flex: 1; padding: 12px 5px; text-align: center; color: #a1a1a6; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px; transition: 0.3s; background: transparent; }";
+  html += ".tab-btn.active { background: rgba(0,191,255,0.15); color: #00bfff; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }";
+  html += ".tab-content { display: none; width: 100%; max-width: 800px; animation: fadeIn 0.3s ease; }";
+  html += ".tab-content.active { display: block; }";
+  html += "@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }";
+  
   html += "</style></head><body>";
   
   int bat = getBatteryPercentage();
-  html += "<div style='position:absolute; top:15px; right:15px; font-size:14px; color:#00e676; font-weight:bold;'>&#128267; " + String(bat) + "%</div>";
+  html += "<div id='bat-indicator' style='position:absolute; top:16px; right:16px; font-size:13px; color:#00bfff; font-weight:bold; background:rgba(0,191,255,0.15); padding:4px 8px; border-radius:12px;'>&#128267; " + String(bat) + "%</div>";
   
-  html += "<div style='display:flex; justify-content:center; align-items:center; position:relative; margin-bottom:15px; width:100%;'>";
-  html += "<a href='#settings_sect' onclick=\"document.getElementById('settings_sect').open=true;\" style='position:absolute; left:0; font-size:24px; text-decoration:none; color:#888;'>&#9881;</a>";
-  html += "<h1 style='margin:0;'>&#128269; LoRaCatcher <span style='font-size:12px; color:#888; font-weight:normal;'>by MacRF</span></h1>";
+  html += "<div style='display:flex; justify-content:center; align-items:center; margin-bottom:20px; width:100%; max-width:800px;'>";
+  html += "<h1 style='margin:0; font-size:28px;'>&#128269; LoRaCatcher <span style='font-size:12px; color:#a1a1a6; font-weight:500; vertical-align:middle;'>by MacRF</span></h1>";
   html += "</div>";
+
+  // TABS NAVIGATION
+  html += "<div class='tabs'>";
+  html += "<div class='tab-btn' onclick=\"openTab('tab-dash', this)\">&#128225; Dashboard</div>";
+  html += "<div class='tab-btn' onclick=\"openTab('tab-param', this)\">&#127919; Parametri</div>";
+  html += "<div class='tab-btn' onclick=\"openTab('tab-sys', this)\">&#9881; Sistema</div>";
+  html += "</div>";
+  
+  // ====================== TAB 1: DASHBOARD ======================
+  html += "<div id='tab-dash' class='tab-content'>";
   html += "<div class='container'>";
   
   if (state == HUNT) {
     LoRaChannel ch = (currentChannelIndex == -1) ? manualProfile : getProfile(currentChannelIndex);
-    html += "<div class='card full' style='border: 2px solid #ff3b30; background: linear-gradient(145deg, #2a0808, #1a0505);'>";
-    html += "<h2 style='color:#ff3b30; text-align:center; border:none; margin-bottom:5px;'>&#127919; CACCIA IN CORSO</h2>";
-    html += "<p style='text-align:center; font-size:14px; margin-bottom:20px;'>Bersaglio: <b>" + String(ch.freq/1000000.0, 1) + " MHz</b> | SF" + String(ch.sf) + " | BW" + String(ch.bw/1000) + "k | CR4/" + String(ch.cr) + "</p>";
+    html += "<div class='card full' style='border: 1px solid rgba(0,191,255,0.4); background: linear-gradient(145deg, #0a111a, #070b12);'>";
+    html += "<h2 style='color:#00bfff; text-align:center; border:none; margin-bottom:8px; font-size:20px;'>&#127919; CACCIA IN CORSO</h2>";
+    html += "<div class='glass-panel' style='text-align:center;'>";
+    html += "<p style='margin:0;'>Bersaglio: <b style='color:#fff; font-size:16px;'>" + String(ch.freq/1000000.0, 1) + " MHz</b></p>";
+    html += "<p style='margin:4px 0 0 0; font-size:12px;'>SF" + String(ch.sf) + " | BW" + String(ch.bw/1000) + "k | CR4/" + String(ch.cr) + "</p>";
+    html += "</div>";
     
     int rssiPercent = map(currentRssi, -140, -30, 0, 100);
     rssiPercent = constrain(rssiPercent, 0, 100);
-    String barColor = rssiPercent > 70 ? "#00e676" : (rssiPercent > 30 ? "#ff9800" : "#ff3b30");
+    String barColor = rssiPercent > 70 ? "#00bfff" : (rssiPercent > 35 ? "#ff9f0a" : "#ff3b30");
     
-    html += "<div style='width:100%; background:#111; border-radius:10px; height:24px; margin:15px 0; overflow:hidden; border:1px solid #333;'>";
-    html += "<div style='width:" + String(rssiPercent) + "%; background:" + barColor + "; height:100%; transition:width 0.5s ease-out; box-shadow: 0 0 10px " + barColor + ";'></div>";
+    html += "<div style='width:100%; background:rgba(0,0,0,0.5); border-radius:12px; height:28px; margin:20px 0; overflow:hidden; border:1px solid rgba(255,255,255,0.05); box-shadow:inset 0 2px 4px rgba(0,0,0,0.5);'>";
+    html += "<div style='width:" + String(rssiPercent) + "%; background: linear-gradient(90deg, " + barColor + ", " + barColor + "ee); height:100%; transition:width 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 0 12px " + barColor + "; border-radius:12px;'></div>";
     html += "</div>";
-    html += "<h1 style='text-align:center; font-size:48px; margin:10px 0; text-shadow:0 0 15px " + barColor + "; color:" + barColor + ";'>" + String(currentRssi) + " <span style='font-size:18px;'>dBm</span></h1>";
+    html += "<h1 style='text-align:center; font-size:54px; margin:10px 0; text-shadow:0 0 20px " + barColor + "aa; color:" + barColor + "; line-height:1;'>" + String(currentRssi) + " <span style='font-size:20px; vertical-align:middle; color:#a1a1a6; text-shadow:none;'>dBm</span></h1>";
     
-    html += "<p style='text-align:center; color:#bbb; font-size:14px;'>Pacchetti estratti: <b>" + String(packetCountChannel) + "</b></p>";
-    html += "<button class='btn-danger' onclick=\"location.href='/startscan'\" style='margin-top:20px; font-size:16px;'>&#9646;&#9646; Ferma Caccia e Torna allo Scan</button>";
+    html += "<p style='text-align:center; color:#a1a1a6; font-size:14px;'>Pacchetti estratti: <b style='color:#fff;'>" + String(packetCountChannel) + "</b></p>";
+    html += "<button class='btn-danger' onclick=\"location.href='/startscan'\" style='margin-top:20px; font-size:15px; padding:14px;'>&#9646;&#9646; Ferma Caccia e Torna allo Scan</button>";
     html += "</div>";
   }
   
-  html += "<div class='card'>";
-  html += "<h2>Stato Sistema</h2>";
+  html += "<div class='card full' style='display:flex; flex-direction:column; gap:15px;'>";
   String stMode = (state == BAND_SELECT) ? "Selezione Banda" : ((state == SCAN) ? (autoScan ? "Scan Auto" : "Scan Fermo") : ((state == HUNT) ? "Caccia" : "Lista"));
-  html += "<p>Stato: <b>" + stMode + "</b></p>";
-  html += "<p>Banda: <b>" + String(selectedBand == BAND_LOW ? "LOW (433-510)" : "HIGH (863-923)") + "</b></p>";
+  
+  html += "<div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;'>";
+  html += "<h2 style='border:none; margin:0;'>Pannello di Controllo</h2>";
+  html += "<span class='status-badge'>" + stMode + "</span>";
+  html += "</div>";
+
+  html += "<div style='display:grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap:10px;'>";
+  html += "<div class='glass-panel' style='margin:0; text-align:center;'><p style='margin:0; font-size:11px; color:#888;'>Banda</p><b style='font-size:14px;'>" + String(selectedBand == BAND_LOW ? "LOW" : "HIGH") + "</b></div>";
   if (state != BAND_SELECT) {
     int dispCh = (currentChannelIndex == -1) ? 0 : (currentChannelIndex + 1);
-    html += "<p>Canale: <b>" + String(dispCh) + "/" + String(TOTAL_PROFILES) + "</b></p>";
-    html += "<p>Pacchetti: <b>" + String(packetCountTotal) + "</b></p>";
+    html += "<div class='glass-panel' style='margin:0; text-align:center;'><p style='margin:0; font-size:11px; color:#888;'>Canale</p><b style='font-size:14px;'>" + String(dispCh) + " / " + String(TOTAL_PROFILES) + "</b></div>";
+    html += "<div class='glass-panel' style='margin:0; text-align:center;'><p style='margin:0; font-size:11px; color:#888;'>Pacchetti</p><b style='font-size:14px; color:#00bfff;'>" + String(packetCountTotal) + "</b></div>";
   }
   html += "</div>";
-  
-  html += "<div class='card'>";
-  html += "<h2>Controllo</h2>";
+
   if (state != BAND_SELECT) {
-    html += "<div class='btn-group'>";
+    html += "<div class='btn-group' style='margin-top:5px;'>";
     html += "<button onclick=\"location.href='/startscan'\">&#9654; Avvia</button>";
-    html += "<button onclick=\"location.href='/restartscan'\">&#8635; Ricomincia</button>";
+    html += "<button class='btn-secondary' onclick=\"location.href='/restartscan'\">&#8635; Ricomincia</button>";
     html += "<button class='btn-danger' onclick=\"location.href='/stopscan'\">&#9646;&#9646; Ferma</button>";
     html += "</div>";
   }
+  
   if (state == BAND_SELECT || !autoScan) {
-    html += "<p style='font-size:11px; margin-top:10px;'>Cambio banda consentito a scan fermo:</p>";
-    html += "<form action='/setband' method='GET' style='display:flex; gap:8px;'>";
-    html += "<select name='b' style='flex:2; padding:8px; border-radius:6px; background:#2c2c2c; color:#fff; border:1px solid #333;'>";
-    html += "<option value='LOW' "+String(selectedBand==BAND_LOW?"selected":"")+">LOW (433-510)</option>";
-    html += "<option value='HIGH' "+String(selectedBand==BAND_HIGH?"selected":"")+">HIGH (863-923)</option>";
+    html += "<div class='glass-panel' style='margin-top:5px;'>";
+    html += "<p style='font-size:12px; margin:0 0 8px 0; color:#a1a1a6;'>Cambio banda consentito a scan fermo:</p>";
+    html += "<form action='/setband' method='GET' style='display:flex; gap:10px; align-items:center;'>";
+    html += "<select name='b' style='flex:2; padding:10px; border-radius:8px; background:rgba(0,0,0,0.5); color:#fff; border:1px solid #333;'>";
+    html += "<option value='LOW' "+String(selectedBand==BAND_LOW?"selected":"")+">LOW (433-510 MHz)</option>";
+    html += "<option value='HIGH' "+String(selectedBand==BAND_HIGH?"selected":"")+">HIGH (863-923 MHz)</option>";
     html += "</select>";
-    html += "<button type='submit' style='flex:1; margin-top:0;'>Applica</button>";
+    html += "<button type='submit' style='flex:1; margin:0;'>Applica</button>";
     html += "</form>";
+    html += "</div>";
   }
-  html += "<button style='margin-top:15px;' onclick=\"location.href='/download'\">&#128229; Scarica PCAP</button>";
+  html += "<button class='btn-secondary' onclick=\"location.href='/download'\">&#128229; Scarica PCAP (" + String(packetCountTotal) + " pkt)</button>";
   html += "</div>";
   
-  html += "<div class='card full'>";
-  html += "<div style='display:flex; justify-content:space-between; align-items:center;'>";
+  html += "<div class='card full' style='border-top: 3px solid #00bfff;'>";
+  html += "<div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;'>";
   html += "<h2 style='border:none; margin:0;'>Dispositivi Rilevati (" + String(discoveredCount) + ")</h2>";
-  html += "<button onclick=\"location.href='/clear'\" style='width:auto; padding:5px 10px; font-size:11px; background:#444; color:#fff;'>&#128465; Svuota Lista</button>";
+  html += "<button class='btn-secondary' onclick=\"location.href='/clear'\" style='width:auto; padding:6px 12px; font-size:12px; margin:0;'>&#128465; Svuota Lista</button>";
   html += "</div>";
-  html += "<hr style='border-color:#333; margin-bottom:12px;'>";
+  
   if (discoveredCount > 0) {
-    html += "<div style='display:grid; gap:8px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));'>";
+    html += "<div style='display:grid; gap:12px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));'>";
     for (int i = 0; i < discoveredCount; i++) {
       LoRaChannel ch = discovered[i].ch;
-      html += "<div class='prof-item' style='display:flex; flex-direction:column; align-items:flex-start;'>";
-      html += "<div style='display:flex; justify-content:space-between; width:100%; margin-bottom:5px;'>";
-      html += "<span><b>" + String(ch.freq/1000000.0, 1) + "M</b> SF" + String(ch.sf) + " BW" + String(ch.bw/1000) + "k CR4/" + String(ch.cr) + (ch.syncWord == 0x34 ? " LWAN" : "") + (ch.invertIQ ? " IQI" : "") + "</span>";
-      html += "<span style='color:#00e676;'><b>" + String(discovered[i].packetCount) + " pkts</b></span>";
+      html += "<div class='prof-item' style='flex-direction:column; align-items:stretch;'>";
+      html += "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;'>";
+      html += "<span style='font-size:16px; font-weight:bold; color:#fff;'>" + String(ch.freq/1000000.0, 1) + " MHz</span>";
+      html += "<span style='color:#00bfff; font-weight:bold; background:rgba(0,191,255,0.15); padding:3px 8px; border-radius:6px; font-size:12px;'>" + String(discovered[i].packetCount) + " PKTS</span>";
       html += "</div>";
-      html += "<button onclick=\"location.href='/webhunt?i=" + String(i) + "'\" style='background:#ff3b30; color:white; padding:6px; font-size:13px; width:100%; margin-top:5px; box-shadow:0 2px 5px rgba(255,59,48,0.3);'>&#127919; Inizia Caccia</button>";
+      html += "<div style='font-size:12px; color:#a1a1a6; margin-bottom:12px;'>SF" + String(ch.sf) + " | BW" + String(ch.bw/1000) + "k | CR4/" + String(ch.cr) + (ch.syncWord == 0x34 ? " | LWAN" : "") + (ch.invertIQ ? " | IQ:Inv" : "") + "</div>";
+      html += "<button onclick=\"location.href='/webhunt?i=" + String(i) + "'\" style='margin:0; padding:8px; font-size:13px; font-weight:600;'>&#127919; Inizia Caccia</button>";
       html += "</div>";
     }
     html += "</div>";
   } else {
-    html += "<p>Nessun dispositivo rilevato finora.</p>";
+    html += "<div class='glass-panel' style='text-align:center; padding:30px 10px;'>";
+    html += "<p style='font-size:15px; color:#888;'>Inizia la scansione per trovare dispositivi LoRa.</p>";
+    html += "</div>";
   }
   html += "</div>";
+  
+  html += "</div>"; // End container per Tab 1
+  html += "</div>"; // End Tab 1
 
-  html += "<div class='card'>";
-  html += "<details>";
-  html += "<summary>Imposta Parametri RF Manuali</summary>";
-  html += "<p style='font-size:11px; margin-bottom:10px; margin-top:0;'>Imposta al volo e vai in caccia:</p>";
+  // ====================== TAB 2: PARAMETRI ======================
+  html += "<div id='tab-param' class='tab-content'>";
+  html += "<div class='container'>";
+  
+  html += "<div class='card full'>";
+  html += "<h2>&#127919; Imposta Parametri Manuali</h2>";
+  html += "<p style='font-size:12px; margin:5px 0 15px 0;'>Imposta frequenza ed entra direttamente in caccia:</p>";
   html += "<form action='/manualhunt' method='GET'>";
-  html += "<div class='form-group'><label>Frequenza (MHz):</label><input type='number' name='f' placeholder='Es. 868.1' step='0.1' required></div>";
+  html += "<div class='form-group'><label>Frequenza (MHz):</label><input type='number' name='f' placeholder='Es. 868.1' step='any' required></div>";
   html += "<div class='form-group'><label>Spreading Factor:</label><select name='sf'><option value='7'>SF7</option><option value='8'>SF8</option><option value='9'>SF9</option><option value='10'>SF10</option><option value='11'>SF11</option><option value='12'>SF12</option></select></div>";
   html += "<div class='form-group'><label>Bandwidth:</label><select name='bw'><option value='62500'>62.5k</option><option value='125000'>125k</option><option value='250000'>250k</option><option value='500000'>500k</option></select></div>";
   html += "<div class='form-group'><label>Coding Rate:</label><select name='cr'><option value='5'>4/5</option><option value='6'>4/6</option><option value='7'>4/7</option><option value='8'>4/8</option></select></div>";
@@ -1412,99 +1458,97 @@ String generateWebPage() {
   html += "<div class='form-group'><label>Inversione IQ:</label><select name='iq'><option value='0'>Normale</option><option value='1'>Invertita</option></select></div>";
   html += "<button type='submit'>Caccia Manuale</button>";
   html += "</form>";
-  html += "</details>";
   html += "</div>";
   
-  html += "<div class='card'>";
-  html += "<details>";
-  html += "<summary>Profili Custom ("+String(numCustomProfiles)+"/"+String(MAX_CUSTOM_PROFILES)+")</summary>";
+  html += "<div class='card full'>";
+  html += "<h2>&#10133; Profili Custom ("+String(numCustomProfiles)+"/"+String(MAX_CUSTOM_PROFILES)+")</h2>";
   html += "<form action='/addprofile' method='GET' style='margin-top:10px;'>";
-  html += "<div class='form-group'><label>Frequenza (MHz):</label><input type='number' name='f' placeholder='Es. 433.9' step='0.1' required></div>";
+  html += "<div class='form-group'><label>Frequenza (MHz):</label><input type='number' name='f' placeholder='Es. 433.9' step='any' required></div>";
   html += "<div class='form-group'><label>Spreading Factor:</label><select name='sf'><option value='7'>SF7</option><option value='8'>SF8</option><option value='9'>SF9</option><option value='10'>SF10</option><option value='11'>SF11</option><option value='12'>SF12</option></select></div>";
   html += "<div class='form-group'><label>Bandwidth:</label><select name='bw'><option value='62500'>62.5k</option><option value='125000'>125k</option><option value='250000'>250k</option><option value='500000'>500k</option></select></div>";
   html += "<div class='form-group'><label>Coding Rate:</label><select name='cr'><option value='5'>4/5</option><option value='6'>4/6</option><option value='7'>4/7</option><option value='8'>4/8</option></select></div>";
   html += "<div class='form-group'><label>Sync Word:</label><select name='sy'><option value='18'>0x12 (Privata)</option><option value='52'>0x34 (LoRaWAN)</option></select></div>";
   html += "<div class='form-group'><label>Inversione IQ:</label><select name='iq'><option value='0'>Normale</option><option value='1'>Invertita</option></select></div>";
-  html += "<button type='submit'>Aggiungi Profilo</button>";
+  html += "<button class='btn-secondary' type='submit'>Aggiungi Profilo</button>";
   html += "</form>";
   
   if (numCustomProfiles > 0) {
     html += "<div style='margin-top:15px; max-height:180px; overflow-y:auto; padding-right:5px;'>";
     for (int i = 0; i < numCustomProfiles; i++) {
-      html += "<div class='prof-item'>";
-      html += "<span><b>" + String(customProfiles[i].freq/1000000.0, 1) + "M</b> SF" + String(customProfiles[i].sf) + " BW" + String(customProfiles[i].bw/1000) + "k CR4/" + String(customProfiles[i].cr) + (customProfiles[i].syncWord == 0x34 ? " LWAN" : "") + (customProfiles[i].invertIQ ? " IQI" : "") + "</span>";
-      html += "<a href='/removeprofile?i=" + String(i) + "' onclick='return confirm(\"Rimuovere questo profilo?\")'>&times;</a>";
+      html += "<div class='prof-item' style='border-left-color:#ff9f0a; padding:8px 12px;'>";
+      html += "<span style='font-size:12px;'><b>" + String(customProfiles[i].freq/1000000.0, 1) + "M</b> SF" + String(customProfiles[i].sf) + " BW" + String(customProfiles[i].bw/1000) + "k CR4/" + String(customProfiles[i].cr) + "</span>";
+      html += "<a href='/removeprofile?i=" + String(i) + "' onclick='return confirm(\"Rimuovere questo profilo?\")' title='Rimuovi'>&times;</a>";
       html += "</div>";
     }
     html += "</div>";
   } else {
     html += "<p style='font-size:12px; margin-top:15px; text-align:center;'>Nessun profilo inserito.</p>";
   }
+  html += "</div>";
+  
+  html += "<div class='card full'>";
+  html += "<details>";
+  html += "<summary>&#128214; Legenda Parametri RF & Profili Generati</summary>";
+  html += "<div class='glass-panel'>";
+  float s = (selectedBand == BAND_LOW) ? LOW_BAND_START : HIGH_BAND_START;
+  float e = (selectedBand == BAND_LOW) ? LOW_BAND_END : HIGH_BAND_END;
+  html += "<p>Profili Base in Scansione: <b>" + String(TOTAL_PROFILES) + " totali</b>.</p>";
+  html += "<p>Frequenze da <b>" + String(s, 1) + "</b> a <b>" + String(e, 1) + " MHz</b> (step " + String(freqStep, 1) + " MHz).</p>";
+  html += "<p style='font-size:12px;'>Per ogni frequenza sono testate le combinazioni di SF (7-12), BW (62.5k, 125k, 250k, 500k), CR (4/5-4/8), SyncWord (0x12, 0x34) e InvertIQ (Norm/Inv).</p>";
+  html += "<button class='btn-secondary' style='width:auto; padding:6px 12px; font-size:12px;' onclick=\"window.open('/profiles.txt', '_blank')\">Vedi Lista TXT</button>";
+  html += "</div>";
+  
+  html += "<div style='font-size:12px; color:#a1a1a6;'>";
+  html += "<p><b style='color:#00bfff;'>Frequenza:</b> Il canale radio. I canali 868.1, 868.3 e 868.5 sono i primari dello standard pubblico LoRaWAN.</p>";
+  html += "<p><b style='color:#00bfff;'>Spreading Factor (SF):</b> Durata del simbolo radio. SF7 è veloce (distanze brevi). SF12 è lento ma garantisce portate di svariati km.</p>";
+  html += "<p><b style='color:#00bfff;'>Bandwidth (BW):</b> 500k offre molta banda ma poco raggio. 125k o 62.5k aumentano la sensibilità e la distanza.</p>";
+  html += "<p><b style='color:#00bfff;'>Coding Rate (CR):</b> Ridondanza errori. Da 4/5 a 4/8.</p>";
+  html += "<p><b style='color:#00bfff;'>Sync Word:</b> 0x12 (Privata) o 0x34 (LoRaWAN pubblica).</p>";
+  html += "<p><b style='color:#00bfff;'>Inversione IQ:</b> Normale per sensori (Uplink), Invertita per Gateway (Downlink).</p>";
+  html += "</div>";
   html += "</details>";
   html += "</div>";
 
-  html += "<div class='card full'>";
-  html += "<h2>Profili Base in Scansione (" + String(TOTAL_PROFILES) + " totali)</h2>";
-  float s = (selectedBand == BAND_LOW) ? LOW_BAND_START : HIGH_BAND_START;
-  float e = (selectedBand == BAND_LOW) ? LOW_BAND_END : HIGH_BAND_END;
-  html += "<p>Frequenze da <b>" + String(s, 1) + "</b> a <b>" + String(e, 1) + " MHz</b> (step " + String(freqStep, 1) + " MHz).</p>";
-  html += "<p>Per ogni frequenza sono testate tutte le combinazioni di SF (7-12), BW (62.5k, 125k, 250k, 500k), CR (4/5-4/8), SyncWord (0x12, 0x34) e InvertIQ (Norm/Inv).</p>";
-  html += "<button onclick=\"window.open('/profiles.txt', '_blank')\">Vedi Lista Completa TXT</button>";
-  html += "</div>";
+  html += "</div>"; // End container per Tab 2
+  html += "</div>"; // End Tab 2
 
-  html += "<div class='card full'>";
-  html += "<h2>Legenda Parametri RF</h2>";
-  html += "<div style='font-size:12px; color:#bbb;'>";
-  html += "<p><b style='color:#00e676;'>Frequenza (MHz):</b> Il canale radio. Deve combaciare precisamente. I canali 868.1, 868.3 e 868.5 sono i canali primari dello standard pubblico LoRaWAN.</p>";
-  html += "<p><b style='color:#00e676;'>Spreading Factor (SF):</b> Durata del simbolo radio. <b>SF7</b> è veloce e consuma meno batteria (distanze brevi). <b>SF12</b> è lento ma penetra ostacoli garantendo portate di svariati chilometri.</p>";
-  html += "<p><b style='color:#00e676;'>Bandwidth (BW):</b> Larghezza del canale radio. <b>500k</b> offre molta banda dati ma poco raggio. <b>125k o 62.5k</b> concentrano l'energia, aumentando enormemente la sensibilità e la distanza raggiungibile.</p>";
-  html += "<p><b style='color:#00e676;'>Coding Rate (CR):</b> Ridondanza dei dati per correggere gli errori. Da 4/5 (minima protezione) a 4/8 (massima protezione contro le interferenze, ma trasmissione più lunga).</p>";
-  html += "<p><b style='color:#00e676;'>Sync Word:</b> Firma hardware del pacchetto. <b>0x12</b> intercetta il 99% dei dispositivi privati fai-da-te o allarmi custom. <b>0x34</b> intercetta i dispositivi commerciali su reti LoRaWAN pubbliche (es. Helium, TTN).</p>";
-  html += "<p><b style='color:#00e676;'>Inversione IQ:</b> Inverte la fase del segnale per evitare collisioni di rete. <b>Normale</b> intercetta i sensori che trasmettono. <b>Invertita</b> intercetta le eventuali risposte (downlink) dai Gateway verso i sensori.</p>";
-  html += "</div>";
-  html += "</div>";
-
+  // ====================== TAB 3: SISTEMA ======================
+  html += "<div id='tab-sys' class='tab-content'>";
+  html += "<div class='container'>";
+  
   if (sdCardPresent) {
     html += "<div class='card full'>";
-    html += "<h2>Gestione Memoria SD</h2>";
-    html += "<div style='font-size:12px; margin-top:10px;'>";
+    html += "<h2>&#128190; Gestione Memoria SD</h2>";
+    html += "<div class='glass-panel'>";
     File root = SD.open("/");
     if (root) {
       File file = root.openNextFile();
       if (!file) {
-        html += "<p style='color:#bbb;'>Nessun file presente sulla SD.</p>";
+        html += "<p style='color:#888;'>Nessun file presente sulla SD.</p>";
       }
       while(file) {
         if (!file.isDirectory()) {
           String fName = file.name();
           if (!fName.startsWith("/")) fName = "/" + fName;
-          int fSize = file.size();
-          String sizeStr = "";
-          if (fSize > 1024 * 1024) {
-            sizeStr = String(fSize / (1024.0 * 1024.0), 2) + " MB";
-          } else {
-            sizeStr = String(fSize / 1024.0, 1) + " KB";
+          if (fName.endsWith(".pcap")) {
+            html += "<div style='display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.4); padding:6px 10px; border-radius:6px; margin-bottom:4px;'>";
+            html += "<span style='font-size:12px; color:#ccc; word-break:break-all;'>" + fName + " <small>(" + String(file.size()/1024) + " KB)</small></span>";
+            html += "<button class='btn-danger' style='width:auto; margin:0; padding:4px 8px; font-size:11px;' onclick=\"if(confirm('Eliminare " + fName + "?')) location.href='/delete?f=" + fName + "'\">Elimina</button>";
+            html += "</div>";
           }
-          html += "<div style='display:flex; justify-content:space-between; align-items:center; background:#2a2a2a; padding:8px; margin-bottom:5px; border-radius:5px;'>";
-          html += "<span style='word-break:break-all; margin-right:10px; color:#fff;'>" + fName + " <span style='color:#00e676;'>(" + sizeStr + ")</span></span>";
-          html += "<div style='display:flex; gap:5px;'>";
-          html += "<a href='/download?f=" + fName + "' style='background:#00e676; color:#121212; padding:5px 10px; text-decoration:none; border-radius:3px; font-weight:bold;'>Download</a>";
-          html += "<a href='/delete?f=" + fName + "' onclick='return confirm(\"Sei sicuro di voler eliminare definitivamente " + fName + " dalla MicroSD?\");' style='background:#ff3b30; color:white; padding:5px 10px; text-decoration:none; border-radius:3px; font-weight:bold;'>Elimina</a>";
-          html += "</div></div>";
         }
         file = root.openNextFile();
       }
     } else {
-      html += "<p style='color:#ff3b30;'>Errore di lettura della cartella radice.</p>";
+      html += "<p style='color:#ff3b30;'>Errore di lettura cartella radice.</p>";
     }
     html += "</div>";
     html += "</div>";
   }
 
   html += "<div class='card full'>";
-  html += "<details id='settings_sect'>";
-  html += "<summary>Impostazioni Sistema & WiFi & OTA</summary>";
-  html += "<p style='font-size:11px; margin-bottom:10px; margin-top:0;'>Cambia impostazioni base o aggiorna firmware.</p>";
+  html += "<h2>&#9881; Configurazione Base & WiFi</h2>";
+  html += "<p style='font-size:11px; margin-bottom:10px; margin-top:0;'>Richiede il riavvio del dispositivo.</p>";
   html += "<form action='/setwifi' method='GET'>";
   html += "<div class='form-group'><label>SSID WiFi:</label><input type='text' name='s' value='" + wifiSSID + "' required></div>";
   html += "<div class='form-group'><label>Password (min 8 car):</label><input type='text' name='p' value='" + wifiPASS + "' required minlength='8'></div>";
@@ -1513,33 +1557,97 @@ String generateWebPage() {
   html += "<option value='0.5' " + String(freqStep==0.5?"selected":"") + ">0.5 MHz (Medio)</option>";
   html += "<option value='0.1' " + String(freqStep<0.5?"selected":"") + ">0.1 MHz (Lento ma Preciso)</option>";
   html += "</select></div>";
-  html += "<button type='submit'>Salva e Riavvia</button>";
+  html += "<button class='btn-secondary' type='submit'>Salva e Riavvia</button>";
   html += "</form>";
-  html += "<hr>";
-  html += "<h4>Aggiornamento Firmware OTA</h4>";
-  html += "<form method='POST' action='/update' enctype='multipart/form-data'>";
-  html += "<input type='file' name='update' required style='margin-bottom:10px; width: 100%;'><br>";
-  html += "<button type='submit' style='background:#ff3b30;'>Carica e Aggiorna</button>";
-  html += "</form>";
-  html += "</details>";
   html += "</div>";
 
-  html += "</div>"; // End container
+  html += "<div class='card full'>";
+  html += "<h2>&#128640; Aggiornamento Firmware OTA</h2>";
+  html += "<form method='POST' action='/update' enctype='multipart/form-data'>";
+  html += "<input type='file' name='update' accept='.bin' required style='margin-bottom:10px; width: 100%; border:none; padding:10px; background:rgba(0,0,0,0.3); border-radius:8px; color:#ccc;'><br>";
+  html += "<p style='font-size:11px; color:#ff9f0a; margin-top:0;'>Assicurati che lo schema partizioni (su Arduino IDE) supporti l'OTA (es. Minimal SPIFFS).</p>";
+  html += "<button type='submit' class='btn-danger'>Carica e Aggiorna Firmware</button>";
+  html += "</form>";
+  html += "</div>";
+
+
   
+  html += "</div>"; // End container per Tab 3
+  html += "</div>"; // End Tab 3
+  
+  // SCRIPT SEZIONE
   html += "<script>";
-  html += "let autoRefresh = setTimeout(function(){location.reload();}, 5000);";
-  html += "document.querySelectorAll('input, select, button').forEach(e => {";
-  html += "  e.addEventListener('focus', () => clearTimeout(autoRefresh));";
-  html += "  e.addEventListener('mousedown', () => clearTimeout(autoRefresh));";
-  html += "});";
-  html += "if(!sessionStorage.getItem('timeSent')) {";
-  html += "  let ts = Math.floor(Date.now()/1000);";
-  html += "  fetch('/settime?t='+ts).then(() => sessionStorage.setItem('timeSent', '1'));";
+  html += "let autoRefresh;";
+  
+  html += "async function doRefresh() {";
+  html += "  try {";
+  html += "    let res = await fetch('/');";
+  html += "    let txt = await res.text();";
+  html += "    let doc = new DOMParser().parseFromString(txt, 'text/html');";
+  html += "    let newDash = doc.getElementById('tab-dash');";
+  html += "    if (newDash) document.getElementById('tab-dash').innerHTML = newDash.innerHTML;";
+  html += "    let newBat = doc.getElementById('bat-indicator');";
+  html += "    if (newBat) document.getElementById('bat-indicator').innerHTML = newBat.innerHTML;";
+  html += "  } catch(e) {}";
+  html += "  manageRefresh();";
   html += "}";
+
+  html += "function manageRefresh() {";
+  html += "  clearTimeout(autoRefresh);";
+  html += "  let activeTab = sessionStorage.getItem('activeTab') || 'tab-dash';";
+  html += "  if(activeTab === 'tab-dash') {";
+  html += "    autoRefresh = setTimeout(doRefresh, 4000);";
+  html += "  }";
+  html += "}";
+  
+  html += "function openTab(tabId, btn) {";
+  html += "  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));";
+  html += "  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));";
+  html += "  document.getElementById(tabId).classList.add('active');";
+  html += "  if(btn) btn.classList.add('active');";
+  html += "  else {";
+  html += "    if(tabId === 'tab-param') document.querySelectorAll('.tab-btn')[1].classList.add('active');";
+  html += "    else if(tabId === 'tab-sys') document.querySelectorAll('.tab-btn')[2].classList.add('active');";
+  html += "    else document.querySelectorAll('.tab-btn')[0].classList.add('active');";
+  html += "  }";
+  html += "  sessionStorage.setItem('activeTab', tabId);";
+  html += "  manageRefresh();";
+  html += "}";
+  
+  html += "function saveDetails() {";
+  html += "  let dState = {};";
+  html += "  document.querySelectorAll('details').forEach((d, i) => { dState[i] = d.open; });";
+  html += "  sessionStorage.setItem('dState', JSON.stringify(dState));";
+  html += "}";
+  
+  html += "function loadDetails() {";
+  html += "  let st = sessionStorage.getItem('dState');";
+  html += "  if(st) {";
+  html += "    let dState = JSON.parse(st);";
+  html += "    document.querySelectorAll('details').forEach((d, i) => { if(dState[i]) d.open = true; });";
+  html += "  }";
+  html += "}";
+
+  html += "window.onload = () => {";
+  html += "  let activeTab = sessionStorage.getItem('activeTab') || 'tab-dash';";
+  html += "  openTab(activeTab, null);";
+  html += "  loadDetails();";
+  html += "  document.querySelectorAll('details').forEach(d => { d.addEventListener('toggle', () => { if(d.open) clearTimeout(autoRefresh); }) });";
+  html += "  document.querySelectorAll('input, select, button').forEach(e => {";
+  html += "    e.addEventListener('focus', () => clearTimeout(autoRefresh));";
+  html += "    e.addEventListener('mousedown', () => clearTimeout(autoRefresh));";
+  html += "  });";
+  html += "  if(!sessionStorage.getItem('timeSent')) {";
+  html += "    let ts = Math.floor(Date.now()/1000);";
+  html += "    fetch('/settime?t='+ts).then(() => sessionStorage.setItem('timeSent', '1'));";
+  html += "  }";
+  html += "};";
   html += "</script>";
   html += "</body></html>";
   return html;
 }
+
+
 
 // ==================== INIZIALIZZAZIONI ====================
 void setupDisplay() {
