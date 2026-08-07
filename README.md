@@ -4,7 +4,7 @@ LoRaCatcher è un avanzato strumento di "Signals Intelligence" (SIGINT) e Wardri
 
 ## 🎯 Panoramica e Funzionalità Principali
 
-I ricevitori normali ascoltano su una singola frequenza con parametri preimpostati. **LoRaCatcher** sfrutta invece un motore procedurale che calcola al volo oltre **25.000 combinazioni radio** permutando frequenze, Spreading Factor, Bandwidth, Coding Rate, Sync Word e Inversione IQ.
+I ricevitori normali ascoltano su una singola frequenza con parametri preimpostati. **LoRaCatcher** sfrutta invece un motore procedurale che calcola al volo oltre **6.000 combinazioni radio** permutando frequenze, Spreading Factor, Bandwidth, Sync Word e Inversione IQ. (Il Coding Rate viene rilevato dinamicamente in Hardware per massimizzare la velocità di scansione).
 
 - **Catch-All Scanner:** Non gli sfugge nulla. Scansiona lo spettro su bande predefinite (433MHz e 868MHz) cercando trasmissioni di:
   - Dispositivi "fai-da-te" e allarmi privati (Sync Word 0x12)
