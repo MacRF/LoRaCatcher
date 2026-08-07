@@ -145,6 +145,7 @@ struct DiscoveredDevice {
 #define MAX_DISCOVERED 100
 DiscoveredDevice discovered[MAX_DISCOVERED];
 int discoveredCount = 0;
+int currentRssi = -140;
 
 // ==================== STATI APPLICAZIONE ====================
 enum AppState { BAND_SELECT, SCAN, SELECT, HUNT };
@@ -214,6 +215,7 @@ void handleStartScan();
 void handleStopScan();
 void handleDownload();
 void handleDelete();
+void handleWebHunt();
 void handleProfilesTxt();
 void handleSetWiFi();
 String generateWebPage();
@@ -347,6 +349,7 @@ void loop() {
   if (packetSize > 0) {
     int packetRssi = LoRa.packetRssi();
     int snr = LoRa.packetSnr();
+    currentRssi = packetRssi;
     uint8_t payload[256];
     int len = 0;
     while (LoRa.available() && len < 256) {
@@ -962,6 +965,7 @@ void setupWiFi() {
   server.on("/stopscan", handleStopScan);
   server.on("/download", handleDownload);
   server.on("/delete", handleDelete);
+  server.on("/webhunt", handleWebHunt);
   server.on("/profiles.txt", handleProfilesTxt);
   server.on("/setwifi", handleSetWiFi);
   server.onNotFound(handleRoot);
@@ -1114,6 +1118,17 @@ void handleDelete() {
   server.send(302);
 }
 
+void handleWebHunt() {
+  if (server.hasArg("i")) {
+    int id = server.arg("i").toInt();
+    if (id >= 0 && id < discoveredCount) {
+      enterHunt(id);
+    }
+  }
+  server.sendHeader("Location", "/");
+  server.send(302);
+}
+
 void handleProfilesTxt() {
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   server.send(200, "text/plain", "");
@@ -1180,6 +1195,26 @@ String generateWebPage() {
   html += "<h1>&#128269; LoRaCatcher <span style='font-size:12px; color:#888; font-weight:normal;'>by MacRF</span></h1>";
   html += "<div class='container'>";
   
+  if (state == HUNT) {
+    LoRaChannel ch = (currentChannelIndex == -1) ? manualProfile : getProfile(currentChannelIndex);
+    html += "<div class='card full' style='border: 2px solid #ff3b30; background: linear-gradient(145deg, #2a0808, #1a0505);'>";
+    html += "<h2 style='color:#ff3b30; text-align:center; border:none; margin-bottom:5px;'>&#127919; CACCIA IN CORSO</h2>";
+    html += "<p style='text-align:center; font-size:14px; margin-bottom:20px;'>Bersaglio: <b>" + String(ch.freq/1000000.0, 1) + " MHz</b> | SF" + String(ch.sf) + " | BW" + String(ch.bw/1000) + "k | CR4/" + String(ch.cr) + "</p>";
+    
+    int rssiPercent = map(currentRssi, -140, -30, 0, 100);
+    rssiPercent = constrain(rssiPercent, 0, 100);
+    String barColor = rssiPercent > 70 ? "#00e676" : (rssiPercent > 30 ? "#ff9800" : "#ff3b30");
+    
+    html += "<div style='width:100%; background:#111; border-radius:10px; height:24px; margin:15px 0; overflow:hidden; border:1px solid #333;'>";
+    html += "<div style='width:" + String(rssiPercent) + "%; background:" + barColor + "; height:100%; transition:width 0.5s ease-out; box-shadow: 0 0 10px " + barColor + ";'></div>";
+    html += "</div>";
+    html += "<h1 style='text-align:center; font-size:48px; margin:10px 0; text-shadow:0 0 15px " + barColor + "; color:" + barColor + ";'>" + String(currentRssi) + " <span style='font-size:18px;'>dBm</span></h1>";
+    
+    html += "<p style='text-align:center; color:#bbb; font-size:14px;'>Pacchetti estratti: <b>" + String(packetCountChannel) + "</b></p>";
+    html += "<button class='btn-danger' onclick=\"location.href='/startscan'\" style='margin-top:20px; font-size:16px;'>&#9646;&#9646; Ferma Caccia e Torna allo Scan</button>";
+    html += "</div>";
+  }
+  
   html += "<div class='card'>";
   html += "<h2>Stato Sistema</h2>";
   String stMode = (state == BAND_SELECT) ? "Selezione Banda" : ((state == SCAN) ? (autoScan ? "Scan Auto" : "Scan Fermo") : ((state == HUNT) ? "Caccia" : "Lista"));
@@ -1219,9 +1254,12 @@ String generateWebPage() {
     html += "<div style='display:grid; gap:8px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));'>";
     for (int i = 0; i < discoveredCount; i++) {
       LoRaChannel ch = discovered[i].ch;
-      html += "<div class='prof-item'>";
+      html += "<div class='prof-item' style='display:flex; flex-direction:column; align-items:flex-start;'>";
+      html += "<div style='display:flex; justify-content:space-between; width:100%; margin-bottom:5px;'>";
       html += "<span><b>" + String(ch.freq/1000000.0, 1) + "M</b> SF" + String(ch.sf) + " BW" + String(ch.bw/1000) + "k CR4/" + String(ch.cr) + (ch.syncWord == 0x34 ? " LWAN" : "") + (ch.invertIQ ? " IQI" : "") + "</span>";
       html += "<span style='color:#00e676;'><b>" + String(discovered[i].packetCount) + " pkts</b></span>";
+      html += "</div>";
+      html += "<button onclick=\"location.href='/webhunt?i=" + String(i) + "'\" style='background:#ff3b30; color:white; padding:6px; font-size:13px; width:100%; margin-top:5px; box-shadow:0 2px 5px rgba(255,59,48,0.3);'>&#127919; Inizia Caccia</button>";
       html += "</div>";
     }
     html += "</div>";
