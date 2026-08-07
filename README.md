@@ -13,6 +13,8 @@ I ricevitori normali ascoltano su una singola frequenza con parametri preimposta
   - Comunicazioni di ritorno (Downlink) dai Gateway verso i sensori (Inversione IQ)
 - **Modalità "Fox Hunt" (Caccia):** Una volta scoperto un dispositivo in trasmissione, puoi selezionarlo. LoRaCatcher bloccherà la radio su quell'esatta configurazione e trasformerà il display OLED in un radar di prossimità in tempo reale: la barra grafica RSSI e il valore in dBm ti permetteranno di rintracciare fisicamente la sorgente ("fuochino/fuocherello").
 - **Interfaccia Web Remota (Access Point):** LoRaCatcher crea una sua rete WiFi (`LoRaCatcher`). Collegandoti con lo smartphone avrai accesso a una dashboard completa, responsiva e dal design accattivante.
+- **Status Batteria in Tempo Reale:** L'interfaccia Web mostra costantemente la percentuale di carica della batteria LiPo collegata. Il software gestisce automaticamente l'hardware specifico (incluso il risparmio energetico del partitore sulla Heltec V2).
+- **Feedback Visivo Immediato:** Il LED integrato sulla scheda lampeggerà istantaneamente ad ogni pacchetto intercettato, permettendoti di capire se c'è attività nell'etere senza dover guardare lo schermo.
 - **Parametri Personalizzati:** Aggiungi profili RF manuali, salta istantaneamente a frequenze specifiche, oppure imposta la precisione di scansione (fino a step chirurgici di 0.1 MHz).
 - **Cattura Forense PCAP:** Inserendo una scheda MicroSD, ogni singolo pacchetto intercettato (incluso il payload crudo, RSSI, SNR, e Timestamp) viene salvato in un file standard `.pcap`, pronto per essere aperto e analizzato offline tramite Wireshark.
 
