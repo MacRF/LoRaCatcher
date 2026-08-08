@@ -96,7 +96,7 @@ DNSServer dnsServer;
 
 // ==================== BANDE ====================
 enum Band { BAND_LOW, BAND_HIGH };
-Band selectedBand = BAND_LOW;
+Band selectedBand = BAND_HIGH;
 
 #define LOW_BAND_START   433.0   // MHz
 #define LOW_BAND_END     510.0
@@ -158,6 +158,7 @@ unsigned long lastPacketTime = 0;
 
 int currentChannelIndex = 0; // -1 indica profilo manuale
 bool autoScan = true;
+bool loopScan = true;
 unsigned long channelEnteredTime = 0;
 unsigned long packetCountTotal = 0;
 unsigned long packetCountChannel = 0;
@@ -220,8 +221,10 @@ void handleRestartScan();
 void handleStopScan();
 void handleDownload();
 void handleDelete();
+void handleClearSD();
 void handleClearList();
 void handleWebHunt();
+void handleToggleLoop();
 void handleProfilesTxt();
 void handleSetWiFi();
 String generateWebPage();
@@ -245,7 +248,8 @@ int getBatteryPercentage() {
       delay(2);
     }
     float raw = sum / 8.0;
-    float currentVoltage = (raw / 4095.0) * 3.3 * BATTERY_DIVIDER;
+    // Calibrazione: dopo il primo fix il valore grezzo si è stabilizzato intorno a 3.84V
+    float currentVoltage = (raw / 4095.0) * 3.3 * BATTERY_DIVIDER * (4.13 / 3.84);
     
 #if defined(BATTERY_EN_PIN)
     digitalWrite(BATTERY_EN_PIN, HIGH); // Spegne per risparmiare energia
@@ -311,7 +315,7 @@ void setup() {
 
   // Stato iniziale: selezione banda
   state = BAND_SELECT;
-  selectedBand = BAND_LOW;
+  selectedBand = BAND_HIGH;
   
   Serial.println("Seleziona la banda sul display o via web...");
 }
@@ -394,9 +398,19 @@ void loop() {
 
   // Auto-scansione
   if (state == SCAN && autoScan && currentChannelIndex >= 0 && millis() - channelEnteredTime > DWELL_TIME) {
-    currentChannelIndex = (currentChannelIndex + 1) % TOTAL_PROFILES;
-    applyChannel(currentChannelIndex);
-    channelEnteredTime = millis();
+    if (currentChannelIndex + 1 >= TOTAL_PROFILES) {
+      if (loopScan) {
+        currentChannelIndex = 0;
+        applyChannel(currentChannelIndex);
+        channelEnteredTime = millis();
+      } else {
+        autoScan = false;
+      }
+    } else {
+      currentChannelIndex++;
+      applyChannel(currentChannelIndex);
+      channelEnteredTime = millis();
+    }
   }
 
   // Aggiorna display
@@ -1023,7 +1037,9 @@ void setupWiFi() {
   server.on("/stopscan", handleStopScan);
   server.on("/download", handleDownload);
   server.on("/delete", handleDelete);
+  server.on("/clearsd", handleClearSD);
   server.on("/clear", handleClearList);
+  server.on("/toggleloop", handleToggleLoop);
   server.on("/webhunt", handleWebHunt);
   server.on("/profiles.txt", handleProfilesTxt);
   server.on("/setwifi", handleSetWiFi);
@@ -1239,8 +1255,35 @@ void handleDelete() {
   server.send(302);
 }
 
+void handleClearSD() {
+  if (sdCardPresent) {
+    File root = SD.open("/");
+    if (root) {
+      File file = root.openNextFile();
+      while(file) {
+        if (!file.isDirectory()) {
+          String fName = file.name();
+          if (!fName.startsWith("/")) fName = "/" + fName;
+          if (fName.endsWith(".pcap")) {
+            SD.remove(fName);
+          }
+        }
+        file = root.openNextFile();
+      }
+    }
+  }
+  server.sendHeader("Location", "/");
+  server.send(302);
+}
+
 void handleClearList() {
   discoveredCount = 0;
+  server.sendHeader("Location", "/");
+  server.send(302);
+}
+
+void handleToggleLoop() {
+  loopScan = !loopScan;
   server.sendHeader("Location", "/");
   server.send(302);
 }
@@ -1297,15 +1340,15 @@ String generateWebPage() {
   html += ".card.full { grid-column: 1 / -1; }";
   html += "p { margin: 6px 0; font-size: 13px; color: #a0a0a5; }";
   html += "b { color: #ffffff; font-weight: 600; }";
-  html += "button { background: linear-gradient(135deg, #007AFF, #00bfff); color: #fff; border: none; padding: 12px 16px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); width: 100%; margin-top: 8px; font-size: 14px; box-shadow: 0 4px 12px rgba(0,122,255,0.3); }";
-  html += "button:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,122,255,0.5); filter: brightness(1.1); }";
+  html += "button { background: rgba(0,191,255,0.15); backdrop-filter: blur(5px); color: #00bfff; border: 1px solid rgba(0,191,255,0.5); padding: 12px 16px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); width: 100%; margin-top: 8px; font-size: 14px; }";
+  html += "button:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,191,255,0.25); background: rgba(0,191,255,0.25); }";
   html += "button:active { transform: translateY(1px); }";
-  html += ".btn-group { display: flex; gap: 10px; }";
-  html += ".btn-group button { flex: 1; margin-top: 0; }";
-  html += ".btn-danger { background: linear-gradient(135deg, #ff3b30, #ff453a); box-shadow: 0 4px 12px rgba(255,59,48,0.3); }";
-  html += ".btn-danger:hover { box-shadow: 0 6px 16px rgba(255,59,48,0.5); }";
-  html += ".btn-secondary { background: linear-gradient(135deg, #48484a, #3a3a3c); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }";
-  html += ".btn-secondary:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.4); }";
+  html += ".btn-group { display: flex; gap: 10px; flex-wrap: wrap; }";
+  html += ".btn-group button { flex: 1; margin-top: 0; min-width: 80px; }";
+  html += ".btn-danger { background: rgba(255,59,48,0.15); color: #ff453a; border: 1px solid rgba(255,59,48,0.5); }";
+  html += ".btn-danger:hover { box-shadow: 0 6px 16px rgba(255,59,48,0.25); background: rgba(255,59,48,0.25); }";
+  html += ".btn-secondary { background: rgba(255,255,255,0.05); color: #a1a1a6; border: 1px solid rgba(255,255,255,0.2); }";
+  html += ".btn-secondary:hover { box-shadow: 0 6px 16px rgba(255,255,255,0.1); background: rgba(255,255,255,0.15); color: #fff; }";
   html += ".form-group { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }";
   html += ".form-group label { font-size: 13px; color: #a1a1a6; flex: 1; font-weight: 500; }";
   html += ".form-group input, .form-group select { width: 55%; padding: 10px; border-radius: 8px; border: 1px solid #333; background: rgba(0,0,0,0.3); color: #fff; font-size: 13px; transition: 0.3s; }";
@@ -1390,11 +1433,30 @@ String generateWebPage() {
   html += "</div>";
 
   if (state != BAND_SELECT) {
+    int dispCh = (currentChannelIndex == -1) ? 0 : (currentChannelIndex + 1);
+    float pctExec = (TOTAL_PROFILES > 0) ? (dispCh * 100.0 / TOTAL_PROFILES) : 0.0;
+    float pctLeft = 100.0 - pctExec;
+    int timeLeftSec = ((TOTAL_PROFILES - dispCh) * DWELL_TIME) / 1000;
+    
+    html += "<div class='glass-panel' style='margin-top:12px; margin-bottom:12px; padding:10px;'>";
+    html += "<div style='display:flex; justify-content:space-between; font-size:11px; margin-bottom:6px; color:#a1a1a6;'>";
+    html += "<span>Stato: <b style='color:#fff;'>" + String(pctExec, 1) + "%</b> (rimane " + String(pctLeft, 1) + "%)</span>";
+    html += "<span>Fine tra: <b style='color:#fff;'>" + String(timeLeftSec / 60) + "m " + String(timeLeftSec % 60) + "s</b></span>";
+    html += "</div>";
+    html += "<div style='width:100%; background:rgba(0,0,0,0.5); border-radius:6px; height:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.05);'>";
+    html += "<div style='width:" + String(pctExec) + "%; background:linear-gradient(90deg, #007AFF, #00bfff); height:100%;'></div>";
+    html += "</div>";
+    html += "</div>";
+
     html += "<div class='btn-group' style='margin-top:5px;'>";
     html += "<button onclick=\"location.href='/startscan'\">&#9654; Avvia</button>";
     html += "<button class='btn-secondary' onclick=\"location.href='/restartscan'\">&#8635; Ricomincia</button>";
     html += "<button class='btn-danger' onclick=\"location.href='/stopscan'\">&#9646;&#9646; Ferma</button>";
     html += "</div>";
+    
+    html += "<button onclick=\"location.href='/toggleloop'\" style='margin-top:8px; background:" + String(loopScan ? "rgba(0,191,255,0.15)" : "rgba(255,255,255,0.05)") + "; border: 1px solid " + String(loopScan ? "rgba(0,191,255,0.5)" : "rgba(255,255,255,0.2)") + "; color:" + String(loopScan ? "#00bfff" : "#a1a1a6") + "; backdrop-filter: blur(5px);'>";
+    html += loopScan ? "&#10227; Loop Attivo (Continua al termine)" : "&#8594; Singolo Passaggio (Ferma al termine)";
+    html += "</button>";
   }
   
   if (state == BAND_SELECT || !autoScan) {
@@ -1519,6 +1581,10 @@ String generateWebPage() {
   if (sdCardPresent) {
     html += "<div class='card full'>";
     html += "<h2>&#128190; Gestione Memoria SD</h2>";
+    html += "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;'>";
+    html += "<p style='margin:0; font-size:12px;'>File PCAP salvati su SD</p>";
+    html += "<button class='btn-danger' onclick=\"if(confirm('Sei sicuro di voler cancellare TUTTI i file PCAP dalla SD?')) location.href='/clearsd'\" style='margin:0; width:auto; padding:6px 12px; font-size:12px;'>&#9888; Svuota SD</button>";
+    html += "</div>";
     html += "<div class='glass-panel'>";
     File root = SD.open("/");
     if (root) {
