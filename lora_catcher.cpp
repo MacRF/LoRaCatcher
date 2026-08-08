@@ -134,7 +134,7 @@ const int NUM_SYNC = 2;
 const bool IQ_LIST[] = {false, true};
 const int NUM_IQ = 2;
 
-const int DWELL_TIME = 200;  // ms per canale in auto-scan
+int dwellTime = 200;  // ms per canale in auto-scan
 
 int TOTAL_PROFILES = 0;
 long baseFreqs[800]; // Max 800 frequenze base per supportare step di 0.1MHz
@@ -397,7 +397,7 @@ void loop() {
   currentPress = NONE;
 
   // Auto-scansione
-  if (state == SCAN && autoScan && currentChannelIndex >= 0 && millis() - channelEnteredTime > DWELL_TIME) {
+  if (state == SCAN && autoScan && currentChannelIndex >= 0 && millis() - channelEnteredTime > dwellTime) {
     if (currentChannelIndex + 1 >= TOTAL_PROFILES) {
       if (loopScan) {
         currentChannelIndex = 0;
@@ -1021,6 +1021,7 @@ void setupWiFi() {
   wifiSSID = preferences.getString("ssid", "LoRaCatcher");
   wifiPASS = preferences.getString("pass", "catcheratwork");
   freqStep = preferences.getFloat("step", 1.0);
+  dwellTime = preferences.getInt("dwell", 200);
 
   WiFi.mode(WIFI_AP);
   WiFi.softAP(wifiSSID.c_str(), wifiPASS.c_str());
@@ -1051,9 +1052,34 @@ void setupWiFi() {
   
   server.on("/update", HTTP_POST, []() {
     server.sendHeader("Connection", "close");
-    server.send(200, "text/plain", (Update.hasError()) ? "UPDATE FAILED" : "UPDATE SUCCESS - REBOOTING");
+    String out = "";
+    if (Update.hasError()) {
+      uint8_t err = Update.getError();
+      out = "UPDATE FAILED (";
+      if (err == UPDATE_ERROR_WRITE) out += "Errore di Scrittura Flash";
+      else if (err == UPDATE_ERROR_ERASE) out += "Errore Cancellazione Flash";
+      else if (err == UPDATE_ERROR_READ) out += "Errore Lettura Stream";
+      else if (err == UPDATE_ERROR_SPACE) out += "Spazio Insufficiente (Partizione troppo piccola)";
+      else if (err == UPDATE_ERROR_SIZE) out += "Dimensione File Errata";
+      else if (err == UPDATE_ERROR_STREAM) out += "Timeout Lettura";
+      else if (err == UPDATE_ERROR_MD5) out += "Controllo MD5 Fallito";
+      else if (err == UPDATE_ERROR_MAGIC_BYTE) out += "Magic Byte Errato (File .bin non valido)";
+      else if (err == UPDATE_ERROR_ACTIVATE) out += "Impossibile Attivare Firmware";
+      else if (err == UPDATE_ERROR_NO_PARTITION) out += "Partizione Non Trovata";
+      else if (err == UPDATE_ERROR_BAD_ARGUMENT) out += "Argomento Non Valido";
+      else if (err == UPDATE_ERROR_ABORT) out += "Aggiornamento Interrotto";
+      else if (err == 13) out += "Errore Decrittazione (File .bin corrotto o Flash criptata)";
+      else if (err == 14) out += "Firma Non Valida (Firma del firmware errata)";
+      else out += "Errore Sconosciuto #" + String(err);
+      out += ")";
+    } else {
+      out = "UPDATE SUCCESS - RIAVVIO IN CORSO...";
+    }
+    server.send(200, "text/plain", out);
     delay(1000);
-    ESP.restart();
+    if (!Update.hasError()) {
+      ESP.restart();
+    }
   }, []() {
     HTTPUpload& upload = server.upload();
     if (upload.status == UPLOAD_FILE_START) {
@@ -1082,7 +1108,16 @@ void setupWiFi() {
       if (!timeSynced) {
         timeSynced = true;
         if (sdCardPresent && pcapFileName.startsWith("/lora_bonifica_")) {
-           openNewPcapFile();
+           struct timeval tv2;
+           gettimeofday(&tv2, NULL);
+           struct tm* tm_info = localtime(&tv2.tv_sec);
+           char buf[64];
+           strftime(buf, sizeof(buf), "/lora_bonifica_%Y%m%d_%H%M%S.pcap", tm_info);
+           String newName = String(buf);
+           if (SD.exists(pcapFileName)) {
+             SD.rename(pcapFileName, newName);
+           }
+           pcapFileName = newName;
         }
       }
     }
@@ -1095,15 +1130,17 @@ void setupWiFi() {
 }
 
 void handleSetWiFi() {
-  if (server.hasArg("s") && server.hasArg("p") && server.hasArg("st")) {
+  if (server.hasArg("s") && server.hasArg("p") && server.hasArg("st") && server.hasArg("dw")) {
     String newSsid = server.arg("s");
     String newPass = server.arg("p");
     float newStep = server.arg("st").toFloat();
+    int newDwell = server.arg("dw").toInt();
     
-    if (newSsid.length() > 0 && newPass.length() >= 8 && newStep >= 0.1) {
+    if (newSsid.length() > 0 && newPass.length() >= 8 && newStep >= 0.1 && newDwell > 0) {
       preferences.putString("ssid", newSsid);
       preferences.putString("pass", newPass);
       preferences.putFloat("step", newStep);
+      preferences.putInt("dwell", newDwell);
       String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{background:#121212;color:#00e676;font-family:sans-serif;text-align:center;padding:50px;}</style></head><body>";
       html += "<h2>Configurazione Salvata! Riavvio in corso...</h2><p>Collegati alla rete <b>" + newSsid + "</b> e ricarica la pagina.</p></body></html>";
       server.send(200, "text/html", html);
@@ -1428,7 +1465,7 @@ String generateWebPage() {
   if (state != BAND_SELECT) {
     int dispCh = (currentChannelIndex == -1) ? 0 : (currentChannelIndex + 1);
     html += "<div class='glass-panel' style='margin:0; text-align:center;'><p style='margin:0; font-size:11px; color:#888;'>Canale</p><b style='font-size:14px;'>" + String(dispCh) + " / " + String(TOTAL_PROFILES) + "</b></div>";
-    html += "<div class='glass-panel' style='margin:0; text-align:center;'><p style='margin:0; font-size:11px; color:#888;'>Pacchetti</p><b style='font-size:14px; color:#00bfff;'>" + String(packetCountTotal) + "</b></div>";
+    html += "<div class='glass-panel' style='margin:0; text-align:center;'><p style='margin:0; font-size:11px; color:#888;'>Pacchetti</p><b id='pkt-counter' style='font-size:14px; color:#00bfff;'>" + String(packetCountTotal) + "</b></div>";
   }
   html += "</div>";
 
@@ -1436,7 +1473,7 @@ String generateWebPage() {
     int dispCh = (currentChannelIndex == -1) ? 0 : (currentChannelIndex + 1);
     float pctExec = (TOTAL_PROFILES > 0) ? (dispCh * 100.0 / TOTAL_PROFILES) : 0.0;
     float pctLeft = 100.0 - pctExec;
-    int timeLeftSec = ((TOTAL_PROFILES - dispCh) * DWELL_TIME) / 1000;
+    int timeLeftSec = ((TOTAL_PROFILES - dispCh) * dwellTime) / 1000;
     
     html += "<div class='glass-panel' style='margin-top:12px; margin-bottom:12px; padding:10px;'>";
     html += "<div style='display:flex; justify-content:space-between; font-size:11px; margin-bottom:6px; color:#a1a1a6;'>";
@@ -1457,6 +1494,7 @@ String generateWebPage() {
     html += "<button onclick=\"location.href='/toggleloop'\" style='margin-top:8px; background:" + String(loopScan ? "rgba(0,191,255,0.15)" : "rgba(255,255,255,0.05)") + "; border: 1px solid " + String(loopScan ? "rgba(0,191,255,0.5)" : "rgba(255,255,255,0.2)") + "; color:" + String(loopScan ? "#00bfff" : "#a1a1a6") + "; backdrop-filter: blur(5px);'>";
     html += loopScan ? "&#10227; Loop Attivo (Continua al termine)" : "&#8594; Singolo Passaggio (Ferma al termine)";
     html += "</button>";
+    html += "<button id='btn-sound' onclick='toggleSound()' style='margin-top:8px; background:rgba(0,191,255,0.15); border: 1px solid rgba(0,191,255,0.5); color:#00bfff; backdrop-filter: blur(5px);'>&#128266; Suono Cattura: ON</button>";
   }
   
   if (state == BAND_SELECT || !autoScan) {
@@ -1623,16 +1661,27 @@ String generateWebPage() {
   html += "<option value='0.5' " + String(freqStep==0.5?"selected":"") + ">0.5 MHz (Medio)</option>";
   html += "<option value='0.1' " + String(freqStep<0.5?"selected":"") + ">0.1 MHz (Lento ma Preciso)</option>";
   html += "</select></div>";
+  html += "<div class='form-group'><label>Tempo di Ascolto (Dwell Time):</label><select name='dw'>";
+  html += "<option value='50' " + String(dwellTime==50?"selected":"") + ">50 ms (Fulmineo)</option>";
+  html += "<option value='100' " + String(dwellTime==100?"selected":"") + ">100 ms (Veloce)</option>";
+  html += "<option value='200' " + String(dwellTime==200?"selected":"") + ">200 ms (Bilanciato - Default)</option>";
+  html += "<option value='500' " + String(dwellTime==500?"selected":"") + ">500 ms (Lento e Sicuro)</option>";
+  html += "<option value='1000' " + String(dwellTime==1000?"selected":"") + ">1000 ms (Scansione Estrema)</option>";
+  html += "</select></div>";
   html += "<button class='btn-secondary' type='submit'>Salva e Riavvia</button>";
   html += "</form>";
   html += "</div>";
 
   html += "<div class='card full'>";
   html += "<h2>&#128640; Aggiornamento Firmware OTA</h2>";
-  html += "<form method='POST' action='/update' enctype='multipart/form-data'>";
-  html += "<input type='file' name='update' accept='.bin' required style='margin-bottom:10px; width: 100%; border:none; padding:10px; background:rgba(0,0,0,0.3); border-radius:8px; color:#ccc;'><br>";
+  html += "<form id='ota-form' enctype='multipart/form-data'>";
+  html += "<input type='file' name='update' id='ota-file' accept='.bin' required style='margin-bottom:10px; width: 100%; border:none; padding:10px; background:rgba(0,0,0,0.3); border-radius:8px; color:#ccc;'><br>";
   html += "<p style='font-size:11px; color:#ff9f0a; margin-top:0;'>Assicurati che lo schema partizioni (su Arduino IDE) supporti l'OTA (es. Minimal SPIFFS).</p>";
-  html += "<button type='submit' class='btn-danger'>Carica e Aggiorna Firmware</button>";
+  html += "<div id='ota-progress-container' style='display:none; width:100%; background:rgba(0,0,0,0.5); border-radius:6px; height:12px; margin-bottom:10px; border:1px solid rgba(255,255,255,0.05); overflow:hidden;'>";
+  html += "<div id='ota-progress-bar' style='width:0%; background:linear-gradient(90deg, #ff9f0a, #ff453a); height:100%; transition:width 0.2s;'></div>";
+  html += "</div>";
+  html += "<p id='ota-status' style='font-size:12px; font-weight:bold; text-align:center; margin-bottom:10px;'></p>";
+  html += "<button type='button' class='btn-danger' onclick='startOTA()'>Carica e Aggiorna Firmware</button>";
   html += "</form>";
   html += "</div>";
 
@@ -1645,15 +1694,50 @@ String generateWebPage() {
   html += "<script>";
   html += "let autoRefresh;";
   
+  html += "let soundEnabled = (localStorage.getItem('sound') === '0') ? false : true;";
+  html += "function toggleSound() {";
+  html += "  soundEnabled = !soundEnabled;";
+  html += "  localStorage.setItem('sound', soundEnabled ? '1' : '0');";
+  html += "  updateSoundBtn();";
+  html += "  if(soundEnabled) playBeep();";
+  html += "}";
+  html += "function updateSoundBtn() {";
+  html += "  let b = document.getElementById('btn-sound');";
+  html += "  if(b) {";
+  html += "    if(soundEnabled) { b.innerHTML = '&#128266; Suono Cattura: ON'; b.style.background = 'rgba(0,191,255,0.15)'; b.style.color = '#00bfff'; b.style.borderColor = 'rgba(0,191,255,0.5)'; }";
+  html += "    else { b.innerHTML = '&#128263; Suono Cattura: OFF'; b.style.background = 'rgba(255,255,255,0.05)'; b.style.color = '#a1a1a6'; b.style.borderColor = 'rgba(255,255,255,0.2)'; }";
+  html += "  }";
+  html += "}";
+  html += "function playBeep() {";
+  html += "  if (!soundEnabled) return;";
+  html += "  try { const ctx = new (window.AudioContext || window.webkitAudioContext)();";
+  html += "  const osc = ctx.createOscillator();";
+  html += "  const gain = ctx.createGain();";
+  html += "  osc.connect(gain);";
+  html += "  gain.connect(ctx.destination);";
+  html += "  osc.type = 'sine';";
+  html += "  osc.frequency.setValueAtTime(1000, ctx.currentTime);";
+  html += "  gain.gain.setValueAtTime(1, ctx.currentTime);";
+  html += "  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);";
+  html += "  osc.start(ctx.currentTime);";
+  html += "  osc.stop(ctx.currentTime + 0.1); } catch(e) {}";
+  html += "}";
+  
   html += "async function doRefresh() {";
   html += "  try {";
+  html += "    let oldCounterEl = document.getElementById('pkt-counter');";
+  html += "    let oldVal = oldCounterEl ? parseInt(oldCounterEl.innerText) : 0;";
   html += "    let res = await fetch('/');";
   html += "    let txt = await res.text();";
   html += "    let doc = new DOMParser().parseFromString(txt, 'text/html');";
   html += "    let newDash = doc.getElementById('tab-dash');";
   html += "    if (newDash) document.getElementById('tab-dash').innerHTML = newDash.innerHTML;";
+  html += "    let newCounterEl = document.getElementById('pkt-counter');";
+  html += "    let newVal = newCounterEl ? parseInt(newCounterEl.innerText) : 0;";
+  html += "    if(newVal > oldVal) playBeep();";
   html += "    let newBat = doc.getElementById('bat-indicator');";
   html += "    if (newBat) document.getElementById('bat-indicator').innerHTML = newBat.innerHTML;";
+  html += "    updateSoundBtn();";
   html += "  } catch(e) {}";
   html += "  manageRefresh();";
   html += "}";
@@ -1694,19 +1778,59 @@ String generateWebPage() {
   html += "  }";
   html += "}";
 
+  html += "function startOTA() {";
+  html += "  let fileInput = document.getElementById('ota-file');";
+  html += "  if(fileInput.files.length === 0) { alert('Seleziona un file .bin!'); return; }";
+  html += "  let file = fileInput.files[0];";
+  html += "  let formData = new FormData();";
+  html += "  formData.append('update', file, file.name);";
+  html += "  let xhr = new XMLHttpRequest();";
+  html += "  let bar = document.getElementById('ota-progress-bar');";
+  html += "  let cont = document.getElementById('ota-progress-container');";
+  html += "  let stat = document.getElementById('ota-status');";
+  html += "  cont.style.display = 'block';";
+  html += "  stat.innerText = 'Caricamento in corso... 0%';";
+  html += "  stat.style.color = '#fff';";
+  html += "  xhr.upload.addEventListener('progress', function(e) {";
+  html += "    if(e.lengthComputable) {";
+  html += "      let percent = Math.round((e.loaded / e.total) * 100);";
+  html += "      bar.style.width = percent + '%';";
+  html += "      stat.innerText = 'Caricamento in corso... ' + percent + '%';";
+  html += "    }";
+  html += "  });";
+  html += "  xhr.onreadystatechange = function() {";
+  html += "    if(xhr.readyState == 4) {";
+  html += "      if(xhr.status == 200) {";
+  html += "        if(xhr.responseText.includes('SUCCESS')) {";
+  html += "          stat.style.color = '#34c759';";
+  html += "          stat.innerText = xhr.responseText;";
+  html += "          setTimeout(() => location.reload(), 5000);";
+  html += "        } else {";
+  html += "          stat.style.color = '#ff3b30';";
+  html += "          stat.innerText = xhr.responseText;";
+  html += "        }";
+  html += "      } else {";
+  html += "        stat.style.color = '#ff3b30';";
+  html += "        stat.innerText = 'Errore di Rete o Dispositivo Disconnesso!';";
+  html += "      }";
+  html += "    }";
+  html += "  };";
+  html += "  xhr.open('POST', '/update', true);";
+  html += "  xhr.send(formData);";
+  html += "}";
+
   html += "window.onload = () => {";
   html += "  let activeTab = sessionStorage.getItem('activeTab') || 'tab-dash';";
   html += "  openTab(activeTab, null);";
   html += "  loadDetails();";
+  html += "  updateSoundBtn();";
   html += "  document.querySelectorAll('details').forEach(d => { d.addEventListener('toggle', () => { if(d.open) clearTimeout(autoRefresh); }) });";
   html += "  document.querySelectorAll('input, select, button').forEach(e => {";
   html += "    e.addEventListener('focus', () => clearTimeout(autoRefresh));";
   html += "    e.addEventListener('mousedown', () => clearTimeout(autoRefresh));";
   html += "  });";
-  html += "  if(!sessionStorage.getItem('timeSent')) {";
-  html += "    let ts = Math.floor(Date.now()/1000);";
-  html += "    fetch('/settime?t='+ts).then(() => sessionStorage.setItem('timeSent', '1'));";
-  html += "  }";
+  html += "  let ts = Math.floor(Date.now()/1000);";
+  html += "  fetch('/settime?t='+ts);";
   html += "};";
   html += "</script>";
   html += "</body></html>";
