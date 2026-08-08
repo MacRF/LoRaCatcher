@@ -1440,12 +1440,13 @@ String generateWebPage() {
     
     int rssiPercent = map(currentRssi, -140, -30, 0, 100);
     rssiPercent = constrain(rssiPercent, 0, 100);
-    String barColor = rssiPercent > 70 ? "#00bfff" : (rssiPercent > 35 ? "#ff9f0a" : "#ff3b30");
+    int hue = map(rssiPercent, 0, 100, 0, 195); // 0=Rosso, 60=Giallo, 120=Verde, 195=Ciano
+    String barColor = "hsl(" + String(hue) + ", 100%, 50%)";
     
     html += "<div style='width:100%; background:rgba(0,0,0,0.5); border-radius:12px; height:28px; margin:20px 0; overflow:hidden; border:1px solid rgba(255,255,255,0.05); box-shadow:inset 0 2px 4px rgba(0,0,0,0.5);'>";
-    html += "<div style='width:" + String(rssiPercent) + "%; background: linear-gradient(90deg, " + barColor + ", " + barColor + "ee); height:100%; transition:width 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 0 12px " + barColor + "; border-radius:12px;'></div>";
+    html += "<div style='width:" + String(rssiPercent) + "%; background: linear-gradient(90deg, " + barColor + "44, " + barColor + "); height:100%; transition:width 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s; box-shadow: 0 0 16px " + barColor + "; border-radius:12px;'></div>";
     html += "</div>";
-    html += "<h1 style='text-align:center; font-size:54px; margin:10px 0; text-shadow:0 0 20px " + barColor + "aa; color:" + barColor + "; line-height:1;'>" + String(currentRssi) + " <span style='font-size:20px; vertical-align:middle; color:#a1a1a6; text-shadow:none;'>dBm</span></h1>";
+    html += "<h1 style='text-align:center; font-size:54px; margin:10px 0; text-shadow:0 0 20px " + barColor + "88; color:" + barColor + "; line-height:1; transition:color 0.3s;'>" + String(currentRssi) + " <span style='font-size:20px; vertical-align:middle; color:#a1a1a6; text-shadow:none;'>dBm</span></h1>";
     
     html += "<p style='text-align:center; color:#a1a1a6; font-size:14px;'>Pacchetti estratti: <b style='color:#fff;'>" + String(packetCountChannel) + "</b></p>";
     html += "<button class='btn-danger' onclick=\"location.href='/startscan'\" style='margin-top:20px; font-size:15px; padding:14px;'>&#9646;&#9646; Ferma Caccia e Torna allo Scan</button>";
