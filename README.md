@@ -12,13 +12,13 @@ I ricevitori normali ascoltano su una singola frequenza con parametri preimposta
   - Trasmissioni a lunghissimo raggio (BW strette fino a 62.5kHz)
   - Comunicazioni di ritorno (Downlink) dai Gateway verso i sensori (Inversione IQ)
 - **Modalità "Fox Hunt" (Caccia):** Una volta scoperto un dispositivo in trasmissione, puoi selezionarlo. LoRaCatcher bloccherà la radio su quell'esatta configurazione e trasformerà il display OLED in un radar di prossimità in tempo reale: la barra grafica RSSI e il valore in dBm ti permetteranno di rintracciare fisicamente la sorgente ("fuochino/fuocherello").
-- **Interfaccia Web Premium a Schede (Tabs):** LoRaCatcher crea una sua rete WiFi (`LoRaCatcher`). Collegandoti con lo smartphone (o PC) avrai accesso a una dashboard all'avanguardia con design **Glassmorphism**, organizzata in schede navigabili senza noiosi ricaricamenti (grazie all'aggiornamento automatico via HTMX/Fetch):
-  - 📡 **Dashboard:** Controllo scansione, RSSI animato e gestione catture in tempo reale.
-  - 🎯 **Parametri:** Inserimento di profili personalizzati e caccia manuale (con Legenda integrata).
-  - ⚙️ **Sistema:** Gestione SD, impostazioni Wi-Fi e Aggiornamenti OTA.
+- **Interfaccia Web Premium a Schede (Tabs):** LoRaCatcher crea una sua rete WiFi (`LoRaCatcher`). Collegandoti con lo smartphone (o PC) avrai accesso a una dashboard all'avanguardia con design **Glassmorphism** (trasparenze stile frosted glass e interfacce adattive) **totalmente responsive** su schermi Mobile, Tablet e Desktop. È organizzata in schede navigabili senza ricaricamenti pagina:
+  - 📡 **Dashboard:** Barra di avanzamento scansione (con % completata e stima tempo residuo), bottone rapido per la modalità **Loop** (ripresa automatica a fine scansione), radar RSSI animato e gestione catture in tempo reale.
+  - 🎯 **Parametri:** Inserimento profili personalizzati e caccia manuale. Di default il sistema parte pronto per intercettare l'attivissima **High Band** (863-923 MHz).
+  - ⚙️ **Sistema:** Gestione memorie con nuovo comando salvavita "**Svuota SD**" (cancella al volo tutti i .pcap), impostazioni Wi-Fi e Aggiornamenti OTA.
 - **Aggiornamenti Firmware OTA:** Puoi caricare comodamente nuove versioni del firmware direttamente dall'interfaccia web senza collegare cavi USB (richiede partizione "Minimal SPIFFS" su Arduino IDE).
 - **Cattura Forense PCAP Perfetta:** Inserendo una scheda MicroSD, ogni singolo pacchetto intercettato (incluso il payload crudo, RSSI, SNR, e Timestamp) viene salvato in un file standard `.pcap`. Grazie al timestamp sincronizzato in automatico dal browser, i nomi dei file conterranno data e ora reali della bonifica, ed i pacchetti sfrutteranno l'header standard "LoRaTap" per essere analizzati alla perfezione su Wireshark.
-- **Status Batteria in Tempo Reale:** L'interfaccia Web mostra costantemente la percentuale di carica della batteria LiPo collegata. Il software gestisce automaticamente l'hardware specifico.
+- **Status Batteria Ultra-Preciso:** L'interfaccia Web e l'OLED mostrano costantemente la percentuale di carica. L'ADC del microcontrollore è stato affinato chirurgicamente e calibrato (allineando la lettura al tester a 4.13V reali per un'indicazione affidabile fino all'1%).
 - **Feedback Visivo Immediato:** Il LED integrato sulla scheda lampeggerà istantaneamente ad ogni pacchetto intercettato.
 
 ## 🛠️ Hardware Richiesto
